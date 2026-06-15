@@ -1,0 +1,55 @@
+name: bioinfo-test
+
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.12
+  - pip
+
+  # Core CLI tools
+  - samtools=1.21
+  - bcftools=1.21
+  - htslib=1.21
+  - bedtools=2.31
+  - seqkit=2.9
+  - fastqc=0.12
+  - multiqc=1.25
+  - bwa=0.7
+  - minimap2=2.28
+
+  # Workflow / runtime
+  - nextflow=24.10
+  - snakemake=8.25
+  - graphviz
+
+  # Python scientific stack via conda
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib
+  - pyarrow
+
+  # BioPython / genomics Python tools
+  - biopython
+  - pysam
+  - pyvcf
+
+  # R stack
+  - r-base=4.4
+  - r-data.table
+  - r-tidyverse
+  - bioconductor-deseq2
+  - bioconductor-genomicranges
+  - bioconductor-rsamtools
+
+  # Nested pip deps
+  - pip:
+      - rich>=13
+      - typer>=0.12
+      - pydantic>=2
+      - polars>=1.0
+      - duckdb>=1.0
+      - pytest>=8

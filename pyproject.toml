@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "depviz"
+version = "0.2.0"
+description = "Inspect dependency graphs for PyPI and Conda/Bioconda manifests."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+  { name = "Tien Du" }
+]
+dependencies = [
+  "packaging>=24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.6.0",
+  "mypy>=1.10"
+]
+
+[project.scripts]
+depviz = "depviz.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/depviz"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+
