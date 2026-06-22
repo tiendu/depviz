@@ -101,64 +101,68 @@ class PythonLockProvider:
                 operation="read lock",
                 message=str(exc),
             ) from exc
-        try:
-            value = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise LockFailed(
-                backend=self.name,
-                operation="read lock",
-                message=f"Invalid lock JSON in {path}: {exc}",
-            ) from exc
-        document = _object(value, "lock root")
-        _require_exact_keys(
-            document,
-            required={
-                "artifacts",
-                "created_at",
-                "interpreter",
-                "lock_id",
-                "resolution",
-                "resolution_digest",
-                "schema",
-                "schema_version",
+        return read_python_lock_bytes(raw)
+
+
+def read_python_lock_bytes(raw: bytes) -> LockedResolution:
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise LockFailed(
+            backend="python-exact-lock",
+            operation="read lock",
+            message=f"Invalid Python lock JSON: {exc}",
+        ) from exc
+    document = _object(value, "lock root")
+    _require_exact_keys(
+        document,
+        required={
+            "artifacts",
+            "created_at",
+            "interpreter",
+            "lock_id",
+            "resolution",
+            "resolution_digest",
+            "schema",
+            "schema_version",
+        },
+        label="lock document",
+    )
+    if document.get("schema") != "depviz.python-lock":
+        raise _invalid("Not a depviz Python lock")
+    if document.get("schema_version") != _LOCK_SCHEMA_VERSION:
+        raise _invalid(f"Unsupported lock schema version: {document.get('schema_version')!r}")
+    _timestamp(document.get("created_at"), "created_at")
+    lock_id = _string(document.get("lock_id"), "lock_id")
+    unsigned = dict(document)
+    del unsigned["lock_id"]
+    if digest_json(unsigned) != lock_id:
+        raise _invalid("Lock content does not match lock_id")
+    resolution = resolution_from_dict(_object(document.get("resolution"), "resolution"))
+    expected_digest = digest_json(resolution_to_dict(resolution))
+    if document.get("resolution_digest") != expected_digest:
+        raise _invalid("Lock resolution does not match resolution_digest")
+    interpreter = _interpreter_metadata(resolution)
+    if document.get("interpreter") != interpreter:
+        raise _invalid("Lock interpreter metadata does not match the normalized resolution")
+    artifacts = document.get("artifacts")
+    expected_artifacts = [_artifact_entry(package) for package in resolution.packages]
+    if artifacts != expected_artifacts:
+        raise _invalid("Lock artifacts do not match the normalized resolution")
+    return LockedResolution(
+        resolution=resolution,
+        artifact=LockArtifact(
+            format="depviz.python-lock.v1",
+            content=raw,
+            metadata={
+                "lock_id": lock_id,
+                "resolution_digest": expected_digest,
+                "platform": resolution.target.platform,
+                "environment_kind": "python-venv",
+                "deployment_kind": "managed-python-deployment",
             },
-            label="lock document",
-        )
-        if document.get("schema") != "depviz.python-lock":
-            raise _invalid("Not a depviz Python lock")
-        if document.get("schema_version") != _LOCK_SCHEMA_VERSION:
-            raise _invalid(f"Unsupported lock schema version: {document.get('schema_version')!r}")
-        _timestamp(document.get("created_at"), "created_at")
-        lock_id = _string(document.get("lock_id"), "lock_id")
-        unsigned = dict(document)
-        del unsigned["lock_id"]
-        if digest_json(unsigned) != lock_id:
-            raise _invalid("Lock content does not match lock_id")
-        resolution = resolution_from_dict(_object(document.get("resolution"), "resolution"))
-        expected_digest = digest_json(resolution_to_dict(resolution))
-        if document.get("resolution_digest") != expected_digest:
-            raise _invalid("Lock resolution does not match resolution_digest")
-        interpreter = _interpreter_metadata(resolution)
-        if document.get("interpreter") != interpreter:
-            raise _invalid("Lock interpreter metadata does not match the normalized resolution")
-        artifacts = document.get("artifacts")
-        expected_artifacts = [_artifact_entry(package) for package in resolution.packages]
-        if artifacts != expected_artifacts:
-            raise _invalid("Lock artifacts do not match the normalized resolution")
-        return LockedResolution(
-            resolution=resolution,
-            artifact=LockArtifact(
-                format="depviz.python-lock.v1",
-                content=raw,
-                metadata={
-                    "lock_id": lock_id,
-                    "resolution_digest": expected_digest,
-                    "platform": resolution.target.platform,
-                    "environment_kind": "python-venv",
-                    "deployment_kind": "managed-python-deployment",
-                },
-            ),
-        )
+        ),
+    )
 
 
 def interpreter_metadata(locked: LockedResolution) -> dict[str, object]:

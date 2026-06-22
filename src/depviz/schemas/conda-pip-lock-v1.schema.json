@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://depviz.dev/schemas/conda-pip-lock-v1.schema.json",
+  "title": "Depviz Conda and pip Lock v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "lock_id",
+    "created_at",
+    "resolution_digest",
+    "resolution",
+    "conda_lock",
+    "python_lock",
+    "ownership"
+  ],
+  "properties": {
+    "schema": { "const": "depviz.conda-pip-lock" },
+    "schema_version": { "const": 1 },
+    "lock_id": { "$ref": "#/$defs/sha256" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "resolution_digest": { "$ref": "#/$defs/sha256" },
+    "resolution": { "type": "object" },
+    "conda_lock": { "type": "object" },
+    "python_lock": { "type": "object" },
+    "ownership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy", "pip_overrides"],
+      "properties": {
+        "policy": { "const": "pip-last" },
+        "pip_overrides": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

@@ -197,13 +197,23 @@ def _validate_intent(intent: DependencyIntent, target: Target) -> None:
         }
     )
     if unsupported:
+        pypi_count = sum(requirement.ecosystem == "pypi" for requirement in intent.requirements)
+        message = (
+            "The Conda dry-run resolver only accepts Conda requirements; unsupported "
+            f"ecosystems: {', '.join(unsupported)}"
+        )
+        if pypi_count:
+            conda_count = sum(
+                requirement.ecosystem == "conda" for requirement in intent.requirements
+            )
+            message += (
+                f". Mixed environment detected ({conda_count} Conda, {pypi_count} pip); "
+                "use --resolver conda-pip or leave --resolver as auto"
+            )
         raise ResolutionFailed(
             backend="conda-dry-run",
             operation="resolve",
-            message=(
-                "The Conda dry-run resolver only accepts Conda requirements; unsupported "
-                f"ecosystems: {', '.join(unsupported)}"
-            ),
+            message=message,
         )
     if intent.constraints:
         raise ResolutionFailed(

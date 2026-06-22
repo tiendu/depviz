@@ -253,7 +253,11 @@ def _verify_for_switch(
 
 
 def _store(deployment: EnvironmentTarget, operation: str) -> ManagedDeploymentStore:
-    if deployment.kind not in {"managed-conda-deployment", "managed-python-deployment"}:
+    if deployment.kind not in {
+        "managed-conda-deployment",
+        "managed-python-deployment",
+        "managed-conda-pip-deployment",
+    }:
         error_type = RollbackFailed if operation == "rollback" else PromotionFailed
         raise error_type(
             backend="core",

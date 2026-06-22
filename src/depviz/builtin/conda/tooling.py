@@ -27,8 +27,8 @@ def tool_settings(
     error: Callable[[str], BackendError],
 ) -> CondaToolSettings:
     tool = context.configuration.get("conda.tool", "micromamba").strip().lower()
-    if tool not in {"conda", "micromamba"}:
-        raise error(f"Unsupported Conda tool {tool!r}; expected 'conda' or 'micromamba'")
+    if tool not in {"conda", "mamba", "micromamba"}:
+        raise error(f"Unsupported Conda tool {tool!r}; expected 'conda', 'mamba', or 'micromamba'")
     executable = context.configuration.get("conda.executable", tool).strip()
     if not executable:
         raise error("The configured Conda executable is empty")

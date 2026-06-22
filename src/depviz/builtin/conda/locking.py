@@ -132,67 +132,70 @@ class CondaLockProvider:
                 operation="read lock",
                 message=str(error),
             ) from error
-        try:
-            value = json.loads(raw)
-        except json.JSONDecodeError as error:
-            raise LockFailed(
-                backend=self.name,
-                operation="read lock",
-                message=f"Invalid lock JSON in {path}: {error}",
-            ) from error
-        document = _object(value, "lock root")
-        _require_exact_keys(
-            document,
-            required={
-                "artifacts",
-                "created_at",
-                "lock_id",
-                "resolution",
-                "resolution_digest",
-                "schema",
-                "schema_version",
+        return read_conda_lock_bytes(raw, context)
+
+
+def read_conda_lock_bytes(raw: bytes, context: OperationContext) -> LockedResolution:
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise LockFailed(
+            backend="conda-exact-lock",
+            operation="read lock",
+            message=f"Invalid Conda lock JSON: {error}",
+        ) from error
+    document = _object(value, "lock root")
+    _require_exact_keys(
+        document,
+        required={
+            "artifacts",
+            "created_at",
+            "lock_id",
+            "resolution",
+            "resolution_digest",
+            "schema",
+            "schema_version",
+        },
+        label="lock document",
+    )
+    if document.get("schema") != "depviz.conda-lock":
+        raise _invalid("Not a depviz Conda lock")
+    if document.get("schema_version") != _LOCK_SCHEMA_VERSION:
+        raise _invalid(f"Unsupported lock schema version: {document.get('schema_version')!r}")
+    _timestamp(document.get("created_at"), "created_at")
+    lock_id = _string(document.get("lock_id"), "lock_id")
+    unsigned = dict(document)
+    del unsigned["lock_id"]
+    if digest_json(unsigned) != lock_id:
+        raise _invalid("Lock content does not match lock_id")
+    resolution_mapping = _object(document.get("resolution"), "resolution")
+    resolution = resolution_from_dict(resolution_mapping)
+    expected_resolution_digest = digest_json(resolution_to_dict(resolution))
+    if document.get("resolution_digest") != expected_resolution_digest:
+        raise _invalid("Lock resolution does not match resolution_digest")
+    artifacts = document.get("artifacts")
+    if not isinstance(artifacts, list) or len(artifacts) != len(resolution.packages):
+        raise _invalid("Lock artifact list does not match the resolved package set")
+    allow_weak = _allow_weak_checksums(context)
+    expected_entries = [
+        _artifact_entry(package, allow_weak_checksums=allow_weak) for package in resolution.packages
+    ]
+    if artifacts != expected_entries:
+        raise _invalid("Lock artifact entries do not match the normalized resolution")
+    return LockedResolution(
+        resolution=resolution,
+        artifact=LockArtifact(
+            format="depviz.conda-lock.v1",
+            content=raw,
+            metadata={
+                "lock_id": lock_id,
+                "resolution_digest": expected_resolution_digest,
+                "platform": resolution.target.platform,
+                "environment_kind": "conda-prefix",
+                "deployment_kind": "managed-conda-deployment",
             },
-            label="lock document",
-        )
-        if document.get("schema") != "depviz.conda-lock":
-            raise _invalid("Not a depviz Conda lock")
-        if document.get("schema_version") != _LOCK_SCHEMA_VERSION:
-            raise _invalid(f"Unsupported lock schema version: {document.get('schema_version')!r}")
-        _timestamp(document.get("created_at"), "created_at")
-        lock_id = _string(document.get("lock_id"), "lock_id")
-        unsigned = dict(document)
-        del unsigned["lock_id"]
-        if digest_json(unsigned) != lock_id:
-            raise _invalid("Lock content does not match lock_id")
-        resolution_mapping = _object(document.get("resolution"), "resolution")
-        resolution = resolution_from_dict(resolution_mapping)
-        expected_resolution_digest = digest_json(resolution_to_dict(resolution))
-        if document.get("resolution_digest") != expected_resolution_digest:
-            raise _invalid("Lock resolution does not match resolution_digest")
-        artifacts = document.get("artifacts")
-        if not isinstance(artifacts, list) or len(artifacts) != len(resolution.packages):
-            raise _invalid("Lock artifact list does not match the resolved package set")
-        allow_weak = _allow_weak_checksums(context)
-        expected_entries = [
-            _artifact_entry(package, allow_weak_checksums=allow_weak)
-            for package in resolution.packages
-        ]
-        if artifacts != expected_entries:
-            raise _invalid("Lock artifact entries do not match the normalized resolution")
-        return LockedResolution(
-            resolution=resolution,
-            artifact=LockArtifact(
-                format="depviz.conda-lock.v1",
-                content=raw,
-                metadata={
-                    "lock_id": lock_id,
-                    "resolution_digest": expected_resolution_digest,
-                    "platform": resolution.target.platform,
-                    "environment_kind": "conda-prefix",
-                    "deployment_kind": "managed-conda-deployment",
-                },
-            ),
-        )
+        ),
+    )
 
 
 def _artifact_entry(

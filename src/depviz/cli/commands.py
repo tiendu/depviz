@@ -34,6 +34,8 @@ from depviz.api.errors import (
     VerificationFailed,
 )
 from depviz.builtin.manifests.common import ParseResult
+from depviz.infrastructure.deployment import ManagedDeploymentStore
+from depviz.infrastructure.storage import read_bytes_limited
 from depviz.infrastructure.inspection_cache import (
     default_cache_path,
     load_inspection_cache,
@@ -199,11 +201,12 @@ def run_resolve(args: argparse.Namespace, services: ApplicationServices) -> int:
     try:
         context = _solver_context(path, args, services)
         intent = _load_intent(path, services, context)
-        plugin, resolver = services.registry.find_resolver_entry(args.resolver)
+        resolver_name = _select_resolver_name(args.resolver, intent)
+        plugin, resolver = services.registry.find_resolver_entry(resolver_name)
         resolution = resolve_intent(
             intent=intent,
             resolver=resolver,
-            target=_initial_target(args.resolver, args.platform),
+            target=_initial_target(resolver_name, args.platform),
             current=None,
             context=context,
         )
@@ -247,19 +250,21 @@ def run_plan(args: argparse.Namespace, services: ApplicationServices) -> int:
     try:
         context = _solver_context(manifest, args, services)
         intent = _load_intent(manifest, services, context)
-        resolver_plugin, resolver = services.registry.find_resolver_entry(args.resolver)
+        resolver_name = _select_resolver_name(args.resolver, intent)
+        resolver_plugin, resolver = services.registry.find_resolver_entry(resolver_name)
 
         if args.empty:
             desired = resolve_intent(
                 intent=intent,
                 resolver=resolver,
-                target=_initial_target(args.resolver, args.platform),
+                target=_initial_target(resolver_name, args.platform),
                 current=None,
                 context=context,
             )
             current = EnvironmentState(packages=(), target=desired.target, complete=True)
         else:
-            inspector_plugin, inspector = services.registry.find_inspector_entry(args.inspector)
+            inspector_name = _select_inspector_name(args.inspector, resolver_name)
+            inspector_plugin, inspector = services.registry.find_inspector_entry(inspector_name)
             inspector_context = context
             if args.platform:
                 inspector_context = replace(
@@ -331,7 +336,8 @@ def run_lock(args: argparse.Namespace, services: ApplicationServices) -> int:
         return ExitCode.INVALID_INPUT
     try:
         resolution = read_resolution_json(resolution_path)
-        _plugin, provider = services.registry.find_lock_provider_entry(args.provider)
+        provider_name = _select_provider_for_resolution(args.provider, resolution)
+        _plugin, provider = services.registry.find_lock_provider_entry(provider_name)
         lock_configuration: dict[str, str] = {}
         if args.allow_weak_checksum:
             lock_configuration["security.allow_weak_checksums"] = "true"
@@ -369,8 +375,10 @@ def run_apply(args: argparse.Namespace, services: ApplicationServices) -> int:
         logger.error(validation)
         return ExitCode.INVALID_INPUT
     try:
-        _plugin, provider = services.registry.find_lock_provider_entry(args.provider)
-        _driver_plugin, driver = services.registry.find_environment_driver_entry(args.driver)
+        provider_name = _select_provider_for_lock(args.provider, lock_path)
+        driver_name = _select_driver_name(args.driver, provider_name)
+        _plugin, provider = services.registry.find_lock_provider_entry(provider_name)
+        _driver_plugin, driver = services.registry.find_environment_driver_entry(driver_name)
         deployment = EnvironmentTarget(Path(args.deployment), driver.deployment_kind)
         runtime_context = _runtime_context(args, services, working_directory=lock_path.parent)
         locked = read_lock(
@@ -435,8 +443,10 @@ def run_verify(args: argparse.Namespace, services: ApplicationServices) -> int:
         logger.error(str(error))
         return ExitCode.INVALID_INPUT
     try:
-        _provider_plugin, provider = services.registry.find_lock_provider_entry(args.provider)
-        _verifier_plugin, verifier = services.registry.find_verifier_entry(args.verifier)
+        provider_name = _select_provider_for_lock(args.provider, lock_path)
+        verifier_name = _select_verifier_name(args.verifier, provider_name)
+        _provider_plugin, provider = services.registry.find_lock_provider_entry(provider_name)
+        _verifier_plugin, verifier = services.registry.find_verifier_entry(verifier_name)
         deployment = EnvironmentTarget(Path(args.deployment), verifier.deployment_kind)
         runtime_context = _runtime_context(args, services, working_directory=lock_path.parent)
         locked = read_lock(
@@ -503,8 +513,12 @@ def run_promote(args: argparse.Namespace, services: ApplicationServices) -> int:
         logger.error(str(error))
         return ExitCode.INVALID_INPUT
     try:
-        _provider_plugin, provider = services.registry.find_lock_provider_entry(args.provider)
-        _verifier_plugin, verifier = services.registry.find_verifier_entry(args.verifier)
+        provider_name = _select_provider_for_candidate(
+            args.provider, Path(args.deployment), args.candidate
+        )
+        verifier_name = _select_verifier_name(args.verifier, provider_name)
+        _provider_plugin, provider = services.registry.find_lock_provider_entry(provider_name)
+        _verifier_plugin, verifier = services.registry.find_verifier_entry(verifier_name)
         deployment = EnvironmentTarget(Path(args.deployment), verifier.deployment_kind)
         record = promote_candidate(
             deployment=deployment,
@@ -553,8 +567,10 @@ def run_rollback(args: argparse.Namespace, services: ApplicationServices) -> int
         logger.error(str(error))
         return ExitCode.INVALID_INPUT
     try:
-        _provider_plugin, provider = services.registry.find_lock_provider_entry(args.provider)
-        _verifier_plugin, verifier = services.registry.find_verifier_entry(args.verifier)
+        provider_name = _select_provider_for_current(args.provider, Path(args.deployment))
+        verifier_name = _select_verifier_name(args.verifier, provider_name)
+        _provider_plugin, provider = services.registry.find_lock_provider_entry(provider_name)
+        _verifier_plugin, verifier = services.registry.find_verifier_entry(verifier_name)
         deployment = EnvironmentTarget(Path(args.deployment), verifier.deployment_kind)
         result = rollback_deployment(
             deployment=deployment,
@@ -839,6 +855,117 @@ def _backend_identity(
         tool=tool,
         tool_version=tool_version,
     )
+
+
+def _select_resolver_name(requested: str, intent: DependencyIntent) -> str:
+    if requested != "auto":
+        return requested
+    ecosystems = {requirement.ecosystem for requirement in intent.requirements}
+    if ecosystems == {"conda"}:
+        return "conda-dry-run"
+    if ecosystems == {"pypi"}:
+        return "uv-lock"
+    if ecosystems == {"conda", "pypi"}:
+        return "conda-pip"
+    names = ", ".join(sorted(ecosystems)) or "none"
+    raise ResolutionFailed(
+        backend="auto",
+        operation="select resolver",
+        message=f"No resolver supports manifest ecosystems: {names}",
+    )
+
+
+def _select_inspector_name(requested: str, resolver_name: str) -> str:
+    if requested != "auto":
+        return requested
+    return {
+        "conda-dry-run": "conda-prefix",
+        "uv-lock": "python-venv",
+        "conda-pip": "conda-pip-prefix",
+    }.get(resolver_name, "conda-prefix")
+
+
+def _select_provider_for_resolution(requested: str, resolution: Resolution) -> str:
+    if requested != "auto":
+        return requested
+    ecosystems = {package.ecosystem for package in resolution.packages}
+    if ecosystems == {"conda"}:
+        return "conda-exact-lock"
+    if ecosystems == {"pypi"}:
+        return "python-exact-lock"
+    if ecosystems == {"conda", "pypi"}:
+        return "conda-pip-exact-lock"
+    raise ValueError(f"Cannot select a lock provider for ecosystems: {sorted(ecosystems)}")
+
+
+def _select_provider_for_lock(requested: str, path: Path) -> str:
+    if requested != "auto":
+        return requested
+    try:
+        value = json.loads(read_bytes_limited(path, label="exact lock"))
+    except (ValueError, json.JSONDecodeError) as error:
+        raise ValueError(f"Cannot identify exact lock format: {error}") from error
+    if not isinstance(value, dict):
+        raise ValueError("Cannot identify exact lock format: root is not an object")
+    schema = value.get("schema")
+    mapping = {
+        "depviz.conda-lock": "conda-exact-lock",
+        "depviz.python-lock": "python-exact-lock",
+        "depviz.conda-pip-lock": "conda-pip-exact-lock",
+    }
+    if not isinstance(schema, str) or schema not in mapping:
+        raise ValueError(f"Unknown exact lock schema: {schema!r}")
+    return mapping[schema]
+
+
+def _select_driver_name(requested: str, provider_name: str) -> str:
+    if requested != "auto":
+        return requested
+    return {
+        "conda-exact-lock": "conda-prefix-driver",
+        "python-exact-lock": "python-venv-driver",
+        "conda-pip-exact-lock": "conda-pip-prefix-driver",
+    }[provider_name]
+
+
+def _select_verifier_name(requested: str, provider_name: str) -> str:
+    if requested != "auto":
+        return requested
+    return {
+        "conda-exact-lock": "conda-prefix-verifier",
+        "python-exact-lock": "python-venv-verifier",
+        "conda-pip-exact-lock": "conda-pip-prefix-verifier",
+    }[provider_name]
+
+
+def _provider_for_lock_format(lock_format: str) -> str:
+    mapping = {
+        "depviz.conda-lock.v1": "conda-exact-lock",
+        "depviz.python-lock.v1": "python-exact-lock",
+        "depviz.conda-pip-lock.v1": "conda-pip-exact-lock",
+    }
+    try:
+        return mapping[lock_format]
+    except KeyError as error:
+        raise ValueError(f"Unknown candidate lock format: {lock_format!r}") from error
+
+
+def _select_provider_for_candidate(requested: str, deployment: Path, candidate_id: str) -> str:
+    if requested != "auto":
+        return requested
+    record = ManagedDeploymentStore(deployment).read_candidate(candidate_id)
+    return _provider_for_lock_format(record.lock_format)
+
+
+def _select_provider_for_current(requested: str, deployment: Path) -> str:
+    if requested != "auto":
+        return requested
+    store = ManagedDeploymentStore(deployment)
+    state = store.read_state()
+    if state.current_candidate_id is None:
+        raise ValueError("Deployment has no current candidate")
+    record = store.read_candidate(state.current_candidate_id)
+    return _provider_for_lock_format(record.lock_format)
 
 
 def _policy_rejected(findings: tuple[PolicyFinding, ...], threshold: str) -> bool:

@@ -53,9 +53,9 @@ def _add_inspect_parser(
 
 
 def _add_resolver_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--resolver", default="conda-dry-run")
+    parser.add_argument("--resolver", default="auto")
     parser.add_argument("--platform")
-    parser.add_argument("--tool", choices=["micromamba", "conda"], default="micromamba")
+    parser.add_argument("--tool", choices=["micromamba", "mamba", "conda"], default="micromamba")
     parser.add_argument("--executable")
     parser.add_argument("--solver", choices=["classic", "libmamba"])
     parser.add_argument("--offline", action="store_true")
@@ -96,7 +96,7 @@ def _add_plan_parser(
     target = parser.add_mutually_exclusive_group(required=True)
     target.add_argument("--prefix", help="Existing Conda prefix to inspect.")
     target.add_argument("--empty", action="store_true", help="Plan creation of a new environment.")
-    parser.add_argument("--inspector", default="conda-prefix")
+    parser.add_argument("--inspector", default="auto")
     _add_resolver_options(parser)
     parser.add_argument("--output")
     parser.add_argument("--json", action="store_true")
@@ -113,7 +113,7 @@ def _add_lock_parser(
 ) -> None:
     parser = subparsers.add_parser("lock", help="Create an exact backend lock from a resolution.")
     parser.add_argument("resolution")
-    parser.add_argument("--provider", default="conda-exact-lock")
+    parser.add_argument("--provider", default="auto")
     parser.add_argument("--output", required=True)
     parser.add_argument(
         "--allow-weak-checksum",
@@ -124,7 +124,7 @@ def _add_lock_parser(
 
 
 def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--tool", choices=["micromamba", "conda"], default="micromamba")
+    parser.add_argument("--tool", choices=["micromamba", "mamba", "conda"], default="micromamba")
     parser.add_argument("--executable")
     parser.add_argument("--solver", choices=["classic", "libmamba"])
     parser.add_argument("--python", help="Python interpreter for Python backends.")
@@ -148,8 +148,8 @@ def _add_apply_parser(
     )
     parser.add_argument("lock")
     parser.add_argument("--deployment", required=True)
-    parser.add_argument("--provider", default="conda-exact-lock")
-    parser.add_argument("--driver", default="conda-prefix-driver")
+    parser.add_argument("--provider", default="auto")
+    parser.add_argument("--driver", default="auto")
     parser.add_argument("--keep-failed", action="store_true")
     parser.add_argument("--json", action="store_true")
     _add_runtime_options(parser)
@@ -164,8 +164,8 @@ def _add_verify_parser(
     parser.add_argument("lock")
     parser.add_argument("--deployment", required=True)
     parser.add_argument("--candidate", required=True)
-    parser.add_argument("--provider", default="conda-exact-lock")
-    parser.add_argument("--verifier", default="conda-prefix-verifier")
+    parser.add_argument("--provider", default="auto")
+    parser.add_argument("--verifier", default="auto")
     parser.add_argument(
         "--probe-command",
         action="append",
@@ -183,8 +183,8 @@ def _add_verify_parser(
 
 
 def _add_switch_verification_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--provider", default="conda-exact-lock")
-    parser.add_argument("--verifier", default="conda-prefix-verifier")
+    parser.add_argument("--provider", default="auto")
+    parser.add_argument("--verifier", default="auto")
     parser.add_argument(
         "--probe-command",
         action="append",
@@ -231,7 +231,11 @@ def _add_status_parser(
     parser.add_argument("--deployment", required=True)
     parser.add_argument(
         "--deployment-kind",
-        choices=["managed-conda-deployment", "managed-python-deployment"],
+        choices=[
+            "managed-conda-deployment",
+            "managed-python-deployment",
+            "managed-conda-pip-deployment",
+        ],
         default="managed-conda-deployment",
     )
     parser.add_argument("--json", action="store_true")
@@ -248,7 +252,7 @@ def _add_doctor_parser(
         default=[],
         help="Check only the named plugin; may be repeated.",
     )
-    parser.add_argument("--tool", choices=["micromamba", "conda"], default="micromamba")
+    parser.add_argument("--tool", choices=["micromamba", "mamba", "conda"], default="micromamba")
     parser.add_argument("--executable")
     parser.add_argument("--solver", choices=["classic", "libmamba"])
     parser.add_argument("--python", help="Python interpreter for Python backend checks.")
