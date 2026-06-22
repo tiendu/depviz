@@ -119,11 +119,17 @@ def test_timeout_kills_spawned_child_process(tmp_path: Path) -> None:
     deadline = time.monotonic() + 3
     while time.monotonic() < deadline:
         stat_path = Path(f"/proc/{child_pid}/stat")
-        if not stat_path.exists():
+
+        try:
+            fields = stat_path.read_text(encoding="utf-8").split()
+        except FileNotFoundError:
+            # The process exited between checking and reading /proc.
             break
-        fields = stat_path.read_text(encoding="utf-8").split()
+
+        # A zombie is terminated but may remain briefly until reaped.
         if len(fields) > 2 and fields[2] == "Z":
             break
+
         time.sleep(0.05)
     else:
         pytest.fail(f"child process {child_pid} survived command timeout")
