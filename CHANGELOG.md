@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0rc4
+
+Conda-family tool discovery and Miniforge integration release candidate.
+
+- Added `--tool auto` and made it the default for resolve, plan, apply, verify, promote, rollback, and doctor operations.
+- Auto-discovery probes `mamba`, then `micromamba`, then `conda`, records the selected executable, and still supports explicit `--tool` and `--executable` overrides.
+- Added executable-name inference so paths such as `/opt/miniforge/bin/mamba` work without a separate `--tool mamba` argument.
+- Made Mamba command construction version-aware: Mamba 2 uses the Micromamba-style `--platform` interface, while Mamba 1 retains the older Conda-compatible `--subdir`, `--no-default-packages`, and `--no-pin` path.
+- Kept Miniforge-installed Mamba attached to its real base prefix instead of assigning a temporary `MAMBA_ROOT_PREFIX`; only standalone Micromamba receives an isolated root prefix.
+- Changed plain `depviz doctor` to treat unavailable, unselected backend toolchains as warnings. Explicit `--plugin` checks and the new `--strict-backends` option continue to fail when the requested toolchain is unavailable.
+- Added regression coverage for automatic selection, Miniforge executable inference, fallback behavior, Mamba 1/2 command profiles, and doctor strictness.
+
 ## 0.8.0rc3
 
 Cross-platform test-suite fix release candidate.
