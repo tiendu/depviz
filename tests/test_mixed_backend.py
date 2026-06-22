@@ -28,6 +28,7 @@ from depviz.builtin.mixed.resolver import CondaPipResolver
 from depviz.builtin.mixed.verifier import CondaPipPrefixVerifier
 from depviz.core.application import apply_locked_environment
 from depviz.core.locking import read_lock, write_lock
+from depviz.core.resolution import host_conda_platform
 from depviz.core.promotion import promote_candidate
 from depviz.core.verification import verify_candidate_environment
 from depviz.infrastructure.commands import LocalCommandRunner
@@ -179,7 +180,7 @@ def _install_exact_wheel(requirements: Path, interpreter: Path) -> None:
 
 def _records() -> tuple[dict[str, object], ...]:
     version = platform.python_version()
-    platform_id = "linux-64"
+    platform_id = host_conda_platform()
     return (
         {
             "name": "python",
@@ -225,7 +226,8 @@ def test_mixed_backend_resolves_locks_applies_verifies_and_promotes(tmp_path: Pa
         ),
         channels=("https://conda.example/conda-forge",),
     )
-    resolution = CondaPipResolver().resolve(intent, Target("linux-64"), None, context)
+    target_platform = host_conda_platform()
+    resolution = CondaPipResolver().resolve(intent, Target(target_platform), None, context)
     assert {package.ecosystem for package in resolution.packages} == {"conda", "pypi"}
 
     provider = CondaPipLockProvider()
@@ -286,7 +288,7 @@ def test_mixed_resolver_rejects_direct_ownership_collision(tmp_path: Path) -> No
         channels=("https://conda.example/conda-forge",),
     )
     try:
-        CondaPipResolver().resolve(intent, Target("linux-64"), None, context)
+        CondaPipResolver().resolve(intent, Target(host_conda_platform()), None, context)
     except Exception as error:
         assert "both Conda and pip" in str(error)
     else:
@@ -329,7 +331,7 @@ dependencies:
                     "resolve",
                     str(manifest),
                     "--platform",
-                    "linux-64",
+                    host_conda_platform(),
                     "--output",
                     str(resolution_path),
                     "--json",
