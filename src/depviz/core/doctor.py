@@ -34,6 +34,7 @@ def run_doctor(
     plugin_names: tuple[str, ...] = (),
     deployment: Path | None = None,
     lock_timeout_seconds: float = 5.0,
+    strict_backends: bool = False,
 ) -> DoctorReport:
     findings: list[DoctorFinding] = []
     operation_context = context or OperationContext()
@@ -77,11 +78,12 @@ def run_doctor(
                 try:
                     diagnostics = health_check.check(operation_context)
                 except BackendError as exc:
+                    required = strict_backends or bool(plugin_names)
                     findings.append(
                         DoctorFinding(
                             code="doctor.backend.unavailable",
                             message=str(exc),
-                            severity=Severity.ERROR,
+                            severity=Severity.ERROR if required else Severity.WARNING,
                         )
                     )
                 except Exception as exc:

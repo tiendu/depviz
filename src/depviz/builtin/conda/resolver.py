@@ -26,7 +26,12 @@ from depviz.builtin.conda.security import (
     sanitize_json,
     sanitize_requirement,
 )
-from depviz.builtin.conda.tooling import isolated_environment, read_tool_version, tool_settings
+from depviz.builtin.conda.tooling import (
+    isolated_environment,
+    mamba_uses_micromamba_cli,
+    read_tool_version,
+    tool_settings,
+)
 from depviz.builtin.conda.transaction import (
     parse_json_payload,
     parse_link_packages,
@@ -80,6 +85,7 @@ class CondaDryRunResolver:
                     executable=executable,
                     candidate_prefix=candidate_prefix,
                     platform=target.platform,
+                    tool_version=tool_version,
                     channels=channels,
                     requirements=intent.requirements,
                     offline=context.offline,
@@ -268,6 +274,7 @@ def _build_command(
     executable: str,
     candidate_prefix: Path,
     platform: str,
+    tool_version: str,
     channels: Sequence[str],
     requirements: Sequence[Requirement],
     offline: bool,
@@ -282,20 +289,19 @@ def _build_command(
         "--prefix",
         str(candidate_prefix),
     ]
-    if tool in {"conda", "mamba"}:
-        # mamba is the Conda-compatible executable and should use Conda's
-        # target/pinning flags. Micromamba has a separate CLI and uses
-        # --platform instead.
+    if tool == "conda" or (tool == "mamba" and not mamba_uses_micromamba_cli(tool, tool_version)):
         arguments.extend(["--subdir", platform, "--no-default-packages", "--no-pin"])
         if solver:
             arguments.extend(["--solver", solver])
     else:
+        # Mamba 2 is the dynamically linked build of Micromamba and exposes
+        # the same CLI. Older Mamba releases used Conda-compatible flags.
         arguments.extend(["--platform", platform])
         if solver:
             raise ResolutionFailed(
                 backend="conda-dry-run",
                 operation="resolve",
-                message="The conda.solver option is only valid when conda.tool is 'conda'",
+                message="The conda.solver option is only valid when the selected tool is 'conda'",
             )
 
     arguments.extend(["--override-channels", "--strict-channel-priority"])

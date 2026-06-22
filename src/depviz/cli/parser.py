@@ -55,7 +55,12 @@ def _add_inspect_parser(
 def _add_resolver_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--resolver", default="auto")
     parser.add_argument("--platform")
-    parser.add_argument("--tool", choices=["micromamba", "mamba", "conda"], default="micromamba")
+    parser.add_argument(
+        "--tool",
+        choices=["auto", "mamba", "micromamba", "conda"],
+        default="auto",
+        help="Conda-family frontend; auto tries mamba, micromamba, then conda.",
+    )
     parser.add_argument("--executable")
     parser.add_argument("--solver", choices=["classic", "libmamba"])
     parser.add_argument("--offline", action="store_true")
@@ -124,7 +129,12 @@ def _add_lock_parser(
 
 
 def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--tool", choices=["micromamba", "mamba", "conda"], default="micromamba")
+    parser.add_argument(
+        "--tool",
+        choices=["auto", "mamba", "micromamba", "conda"],
+        default="auto",
+        help="Conda-family frontend; auto tries mamba, micromamba, then conda.",
+    )
     parser.add_argument("--executable")
     parser.add_argument("--solver", choices=["classic", "libmamba"])
     parser.add_argument("--python", help="Python interpreter for Python backends.")
@@ -252,7 +262,12 @@ def _add_doctor_parser(
         default=[],
         help="Check only the named plugin; may be repeated.",
     )
-    parser.add_argument("--tool", choices=["micromamba", "mamba", "conda"], default="micromamba")
+    parser.add_argument(
+        "--tool",
+        choices=["auto", "mamba", "micromamba", "conda"],
+        default="auto",
+        help="Conda-family frontend; auto tries mamba, micromamba, then conda.",
+    )
     parser.add_argument("--executable")
     parser.add_argument("--solver", choices=["classic", "libmamba"])
     parser.add_argument("--python", help="Python interpreter for Python backend checks.")
@@ -261,6 +276,11 @@ def _add_doctor_parser(
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--output-limit", type=int, default=1024 * 1024)
     parser.add_argument("--lock-timeout", type=float, default=5.0)
+    parser.add_argument(
+        "--strict-backends",
+        action="store_true",
+        help="Fail when any installed backend toolchain is unavailable.",
+    )
     parser.add_argument("--json", action="store_true")
 
 

@@ -17,7 +17,12 @@ from depviz.api import (
 )
 from depviz.api.errors import ApplyFailed, ToolUnavailable
 from depviz.builtin.conda.locking import locked_artifacts
-from depviz.builtin.conda.tooling import isolated_environment, read_tool_version, tool_settings
+from depviz.builtin.conda.tooling import (
+    isolated_environment,
+    mamba_uses_micromamba_cli,
+    read_tool_version,
+    tool_settings,
+)
 from depviz.core.resolution import host_conda_platform
 from depviz.infrastructure import LocalCommandRunner
 from depviz.infrastructure.deployment import ManagedDeploymentStore
@@ -124,6 +129,7 @@ class CondaPrefixDriver:
                     executable=settings.executable,
                     prefix=candidate.path,
                     explicit_file=explicit_file,
+                    tool_version=tool_version,
                     offline=context.offline,
                 ),
                 cwd=context.working_directory,
@@ -212,6 +218,7 @@ def _build_apply_command(
     executable: str,
     prefix: Path,
     explicit_file: Path,
+    tool_version: str,
     offline: bool,
 ) -> tuple[str, ...]:
     arguments = [
@@ -224,7 +231,7 @@ def _build_apply_command(
         str(explicit_file),
         "--json",
     ]
-    if tool in {"conda", "mamba"}:
+    if tool == "conda" or (tool == "mamba" and not mamba_uses_micromamba_cli(tool, tool_version)):
         arguments.extend(["--no-default-packages", "--no-pin"])
     if offline:
         arguments.append("--offline")

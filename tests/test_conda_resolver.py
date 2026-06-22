@@ -363,7 +363,7 @@ def test_space_separated_conda_version_is_preserved_as_match_spec() -> None:
     assert runner.commands[1].argv[-1] == "python 3.11.* *_cpython"
 
 
-def test_mamba_tool_uses_conda_compatible_target_and_pin_flags() -> None:
+def test_mamba_2_uses_micromamba_target_flags() -> None:
     runner = ScriptedRunner([{"stdout": "mamba 2.1.0\n"}, {"stdout": _solver_payload()}])
 
     CondaDryRunResolver().resolve(
@@ -376,12 +376,29 @@ def test_mamba_tool_uses_conda_compatible_target_and_pin_flags() -> None:
     command_result = runner.commands[1]
     command = command_result.argv
     assert command[0] == "mamba"
+    assert command[command.index("--platform") + 1] == "linux-64"
+    assert "--subdir" not in command
+    assert "--no-default-packages" not in command
+    assert "--no-pin" not in command
+    assert command_result.environment is not None
+    assert "MAMBA_ROOT_PREFIX" not in command_result.environment
+
+
+def test_mamba_1_uses_conda_compatible_target_and_pin_flags() -> None:
+    runner = ScriptedRunner([{"stdout": "mamba 1.5.12\n"}, {"stdout": _solver_payload()}])
+
+    CondaDryRunResolver().resolve(
+        _intent(Requirement(ecosystem="conda", name="python")),
+        Target(platform="linux-64"),
+        None,
+        _context(runner, **{"conda.tool": "mamba", "conda.executable": "mamba"}),
+    )
+
+    command = runner.commands[1].argv
     assert command[command.index("--subdir") + 1] == "linux-64"
     assert "--platform" not in command
     assert "--no-default-packages" in command
     assert "--no-pin" in command
-    assert command_result.environment is not None
-    assert "MAMBA_ROOT_PREFIX" not in command_result.environment
 
 
 def test_generic_mamba_solver_failure_reports_tool_target_and_fallbacks() -> None:

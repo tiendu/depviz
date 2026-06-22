@@ -645,6 +645,7 @@ def run_doctor_command(args: argparse.Namespace, services: ApplicationServices) 
         plugin_names=tuple(args.plugin),
         deployment=Path(args.deployment) if args.deployment else None,
         lock_timeout_seconds=args.lock_timeout,
+        strict_backends=args.strict_backends,
     )
     if args.json:
         print(
