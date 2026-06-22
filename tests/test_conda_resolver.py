@@ -360,3 +360,18 @@ def test_space_separated_conda_version_is_preserved_as_match_spec() -> None:
     )
 
     assert runner.commands[1].argv[-1] == "python 3.11.* *_cpython"
+
+
+def test_mamba_tool_uses_micromamba_compatible_platform_flag() -> None:
+    runner = ScriptedRunner([{"stdout": "mamba 2.1.0\n"}, {"stdout": _solver_payload()}])
+
+    CondaDryRunResolver().resolve(
+        _intent(Requirement(ecosystem="conda", name="python")),
+        Target(platform="linux-64"),
+        None,
+        _context(runner, **{"conda.tool": "mamba", "conda.executable": "mamba"}),
+    )
+
+    command = runner.commands[1].argv
+    assert command[0] == "mamba"
+    assert command[command.index("--platform") + 1] == "linux-64"

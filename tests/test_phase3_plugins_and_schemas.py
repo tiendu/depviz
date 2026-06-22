@@ -32,6 +32,7 @@ def test_phase3_schemas_are_packaged_and_valid_json() -> None:
         "resolution-v1.schema.json",
         "plan-v1.schema.json",
         "lock-v1.schema.json",
+        "conda-pip-lock-v1.schema.json",
         "candidate-v1.schema.json",
         "deployment-v1.schema.json",
         "verification-v1.schema.json",

@@ -20,6 +20,7 @@ from depviz.api import (
     VerificationReport,
 )
 from depviz.builtin.conda import CondaLockProvider
+from depviz.builtin.mixed import CondaPipLockProvider
 from depviz.builtin.python import PythonLockProvider
 from depviz.core.planning import build_change_plan, plan_from_dict, plan_to_dict
 from depviz.core.resolution import resolution_to_dict
@@ -94,6 +95,38 @@ def _python_resolution() -> Resolution:
     )
 
 
+def _mixed_resolution() -> Resolution:
+    conda = _conda_resolution()
+    python = _python_resolution()
+    return Resolution(
+        requested=(),
+        packages=tuple(
+            sorted(
+                (*conda.packages, *python.packages),
+                key=lambda package: (package.ecosystem, package.name),
+            )
+        ),
+        target=conda.target,
+        status=ResolutionStatus.COMPLETE,
+        native_payload=BackendPayload(
+            schema="depviz.conda-pip.resolution.v1",
+            data={
+                "tool": "conda+uv",
+                "tool_version": "micromamba 2.1.0; uv 0.10.0",
+                "conda_resolution": resolution_to_dict(conda),
+                "python_resolution": resolution_to_dict(python),
+                "python_runtime": {
+                    "version": "3.12.3",
+                    "implementation": "cpython",
+                    "conda_platform": "linux-64",
+                    "uv_platform": "x86_64-unknown-linux-gnu",
+                },
+                "ownership": {"policy": "pip-last", "pip_overrides": []},
+            },
+        ),
+    )
+
+
 def _schema(name: str) -> dict[str, object]:
     raw = files("depviz.schemas").joinpath(name).read_text(encoding="utf-8")
     value = json.loads(raw)
@@ -144,6 +177,11 @@ def test_generated_documents_match_their_published_schemas(tmp_path: Path) -> No
     python_document = json.loads(python_lock.content)
     assert isinstance(python_document, dict)
     _validate("python-lock-v1.schema.json", python_document)
+
+    mixed_lock = CondaPipLockProvider().create_lock(_mixed_resolution(), OperationContext())
+    mixed_document = json.loads(mixed_lock.content)
+    assert isinstance(mixed_document, dict)
+    _validate("conda-pip-lock-v1.schema.json", mixed_document)
 
     store = ManagedDeploymentStore(tmp_path / "deployment")
     store.initialize()
