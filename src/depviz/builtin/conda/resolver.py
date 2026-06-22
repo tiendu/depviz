@@ -86,7 +86,7 @@ class CondaDryRunResolver:
                     solver=settings.solver,
                 ),
                 cwd=context.working_directory,
-                environment=isolated_environment(temporary_root, empty_rc),
+                environment=isolated_environment(tool, temporary_root, empty_rc),
             )
 
             try:
@@ -128,10 +128,18 @@ class CondaDryRunResolver:
         payload = parse_json_payload(result.stdout)
         sanitized_payload = cast(dict[str, object], sanitize_json(payload, transient_redactions))
         if result.returncode != 0 or payload.get("success") is not True:
+            message = solver_failure_message(sanitized_payload, result.stderr, result.returncode)
+            if "without package-specific conflict details" in message:
+                message += (
+                    f"; tool={tool} {tool_version}, target={target.platform}. "
+                    "Try the same manifest with --tool micromamba or "
+                    "--tool conda --solver libmamba to distinguish a Mamba CLI/configuration "
+                    "problem from an unsatisfiable environment"
+                )
             raise ResolutionFailed(
                 backend=self.name,
                 operation="resolve",
-                message=solver_failure_message(sanitized_payload, result.stderr, result.returncode),
+                message=message,
             )
 
         packages, package_diagnostics = parse_link_packages(payload, target.platform, secrets)
@@ -274,7 +282,10 @@ def _build_command(
         "--prefix",
         str(candidate_prefix),
     ]
-    if tool == "conda":
+    if tool in {"conda", "mamba"}:
+        # mamba is the Conda-compatible executable and should use Conda's
+        # target/pinning flags. Micromamba has a separate CLI and uses
+        # --platform instead.
         arguments.extend(["--subdir", platform, "--no-default-packages", "--no-pin"])
         if solver:
             arguments.extend(["--solver", solver])

@@ -54,12 +54,22 @@ def tool_settings(
     )
 
 
-def isolated_environment(temporary_root: Path, empty_rc: Path) -> dict[str, str]:
-    return {
+def isolated_environment(
+    tool: str,
+    temporary_root: Path,
+    empty_rc: Path,
+) -> dict[str, str]:
+    environment = {
         "CONDARC": str(empty_rc),
         "MAMBARC": str(empty_rc),
-        "MAMBA_ROOT_PREFIX": str(temporary_root / "mamba-root"),
     }
+    # Micromamba is standalone and needs its own isolated root prefix. The
+    # full mamba executable is installed inside a real Conda base prefix;
+    # overriding MAMBA_ROOT_PREFIX for it can detach it from that installation
+    # and produce opaque libmamba failures such as "unsupported request".
+    if tool == "micromamba":
+        environment["MAMBA_ROOT_PREFIX"] = str(temporary_root / "mamba-root")
+    return environment
 
 
 def read_tool_version(

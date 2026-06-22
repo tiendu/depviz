@@ -257,11 +257,25 @@ def solver_failure_message(
         value = payload.get(key)
         if isinstance(value, str) and value.strip():
             parts.append(value.strip())
+
     problems = payload.get("solver_problems")
     if isinstance(problems, list):
-        parts.extend(str(problem).strip() for problem in problems if str(problem).strip())
-    if not parts and stderr.strip():
-        parts.append(stderr.strip())
+        normalized = [str(problem).strip() for problem in problems if str(problem).strip()]
+        specific = [problem for problem in normalized if problem.lower() != "unsupported request"]
+        if specific:
+            parts.extend(specific)
+        elif normalized:
+            parts.append(
+                "libmamba returned only 'unsupported request' without package-specific "
+                "conflict details"
+            )
+
+    stderr_detail = stderr.strip()
+    if stderr_detail and stderr_detail.lower() not in {
+        "critical libmamba could not solve for environment specs",
+        "could not solve for environment specs",
+    }:
+        parts.append(stderr_detail)
     if not parts:
         parts.append(f"solver exited with code {returncode}")
     return "; ".join(dict.fromkeys(parts))

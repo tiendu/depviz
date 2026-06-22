@@ -166,6 +166,7 @@ def test_micromamba_resolver_returns_exact_normalized_packages() -> None:
     assert command.environment is not None
     assert command.environment["CONDARC"].endswith("empty-condarc.yml")
     assert command.environment["MAMBARC"].endswith("empty-condarc.yml")
+    assert command.environment["MAMBA_ROOT_PREFIX"].endswith("mamba-root")
 
 
 def test_conda_tool_uses_subdir_and_explicit_solver() -> None:
@@ -362,7 +363,7 @@ def test_space_separated_conda_version_is_preserved_as_match_spec() -> None:
     assert runner.commands[1].argv[-1] == "python 3.11.* *_cpython"
 
 
-def test_mamba_tool_uses_micromamba_compatible_platform_flag() -> None:
+def test_mamba_tool_uses_conda_compatible_target_and_pin_flags() -> None:
     runner = ScriptedRunner([{"stdout": "mamba 2.1.0\n"}, {"stdout": _solver_payload()}])
 
     CondaDryRunResolver().resolve(
@@ -372,6 +373,42 @@ def test_mamba_tool_uses_micromamba_compatible_platform_flag() -> None:
         _context(runner, **{"conda.tool": "mamba", "conda.executable": "mamba"}),
     )
 
-    command = runner.commands[1].argv
+    command_result = runner.commands[1]
+    command = command_result.argv
     assert command[0] == "mamba"
-    assert command[command.index("--platform") + 1] == "linux-64"
+    assert command[command.index("--subdir") + 1] == "linux-64"
+    assert "--platform" not in command
+    assert "--no-default-packages" in command
+    assert "--no-pin" in command
+    assert command_result.environment is not None
+    assert "MAMBA_ROOT_PREFIX" not in command_result.environment
+
+
+def test_generic_mamba_solver_failure_reports_tool_target_and_fallbacks() -> None:
+    runner = ScriptedRunner(
+        [
+            {"stdout": "mamba 2.5.0\n"},
+            {
+                "returncode": 1,
+                "stdout": json.dumps(
+                    {"success": False, "solver_problems": ["unsupported request"]}
+                ),
+                "stderr": "critical libmamba Could not solve for environment specs",
+            },
+        ]
+    )
+
+    with pytest.raises(ResolutionFailed) as captured:
+        CondaDryRunResolver().resolve(
+            _intent(Requirement(ecosystem="conda", name="python")),
+            Target(platform="osx-arm64"),
+            None,
+            _context(runner, **{"conda.tool": "mamba", "conda.executable": "mamba"}),
+        )
+
+    message = str(captured.value)
+    assert "without package-specific conflict details" in message
+    assert "tool=mamba 2.5.0" in message
+    assert "target=osx-arm64" in message
+    assert "--tool micromamba" in message
+    assert "--tool conda --solver libmamba" in message

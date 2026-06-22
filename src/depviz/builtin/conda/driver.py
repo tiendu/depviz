@@ -127,7 +127,7 @@ class CondaPrefixDriver:
                     offline=context.offline,
                 ),
                 cwd=context.working_directory,
-                environment=isolated_environment(temporary_root, empty_rc),
+                environment=isolated_environment(settings.tool, temporary_root, empty_rc),
             )
             try:
                 result = runner.run(
@@ -224,7 +224,7 @@ def _build_apply_command(
         str(explicit_file),
         "--json",
     ]
-    if tool == "conda":
+    if tool in {"conda", "mamba"}:
         arguments.extend(["--no-default-packages", "--no-pin"])
     if offline:
         arguments.append("--offline")
