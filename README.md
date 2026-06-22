@@ -105,11 +105,10 @@ dependencies:
       - polars
 ```
 
-Depviz detects this shape automatically. It solves the Conda layer first, binds the wheel resolution to the Python version and platform selected by that solve, and manages both layers inside one candidate prefix:
+Depviz detects this shape automatically. It solves the Conda layer first, binds the wheel resolution to the Python version and platform selected by that solve, and manages both layers inside one candidate prefix. Conda-family tools are auto-detected in this order: `mamba`, `micromamba`, then `conda`:
 
 ```bash
 depviz resolve environment.yml \
-  --tool micromamba \
   --platform osx-arm64 \
   --output resolution.json
 
@@ -119,16 +118,16 @@ depviz apply lock.json \
   --deployment .depviz/mixed-app
 ```
 
-The same command can use Mamba directly:
+Use an explicit frontend only when needed:
 
 ```bash
 depviz resolve environment.yml \
   --tool mamba \
-  --platform linux-64 \
+  --platform osx-arm64 \
   --output resolution.json
 ```
 
-Or Conda with libmamba:
+Conda with libmamba remains available explicitly:
 
 ```bash
 depviz resolve environment.yml \
@@ -152,6 +151,8 @@ Transitive overlaps are recorded under a conservative `pip-last` policy, and ver
 See [`docs/conda-pip-backend.md`](docs/conda-pip-backend.md) for the detailed guarantees and limitations.
 
 ## Conda lifecycle
+
+By default, Depviz discovers `mamba`, `micromamba`, or `conda` from the current environment. Miniforge installations therefore work without extra flags when `mamba` is on `PATH`. Use `--tool` or `--executable` to override discovery.
 
 ### Resolve
 

@@ -2,11 +2,18 @@
 
 ## Doctor
 
-`depviz doctor` validates plugin contracts. Optional plugin health checks can confirm that external tools and runtimes are usable:
+`depviz doctor` validates plugin contracts and auto-discovers Conda-family frontends in this order: `mamba`, `micromamba`, then `conda`. This supports a normal Miniforge installation without requiring `--tool`:
 
 ```bash
+depviz doctor --plugin depviz-conda
 depviz doctor --plugin depviz-python --python /usr/bin/python3.12 --uv-executable uv
-depviz doctor --plugin depviz-conda --tool micromamba --executable micromamba
+```
+
+Plain `depviz doctor` treats unavailable optional backend toolchains as warnings. Use `--plugin` when a specific backend is required, or `--strict-backends` to require every installed backend toolchain:
+
+```bash
+depviz doctor --strict-backends
+depviz doctor --plugin depviz-conda --tool mamba --executable /opt/miniforge/bin/mamba
 ```
 
 Against a managed deployment:
