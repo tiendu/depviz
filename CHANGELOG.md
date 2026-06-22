@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0rc3
+
+Cross-platform test-suite fix release candidate.
+
+- Fixed mixed Conda+pip lifecycle tests to derive the host Conda platform instead of hardcoding `linux-64`.
+- Preserved the production cross-platform apply guard; only the tests were incorrect on `osx-arm64`.
+- Added regression coverage ensuring generated Conda records, resolution targets, and CLI apply targets agree with the actual host platform.
+
 ## 0.8.0rc2
 
 Mamba adapter bug-fix release candidate.
