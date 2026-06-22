@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.0rc1
+
+Mixed Conda and pip environment release candidate. This release fixes the real-world case where a Conda `environment.yml` contains a `pip:` subsection and adds a push-ready implementation without resuming R work.
+
+- Added the `conda-pip` resolver, which splits one mixed manifest into Conda and PyPI intents, solves the complete Conda environment first, binds the Python wheel solve to the exact resolved Conda Python version and target platform, and produces one combined resolution.
+- Added the `depviz.conda-pip-lock.v1` compound lock containing validated child Conda and Python exact locks, a full combined resolution digest, and an explicit package-ownership map.
+- Added isolated mixed candidate application: exact Conda artifacts are installed first, then exact SHA-256-pinned wheels are overlaid into that same Conda prefix without dependency re-resolution.
+- Added mixed-prefix inspection and verification, including Conda package identity, pip/uv-owned distribution identity, Python runtime binding, wheel `RECORD` validation, import probes, and command probes.
+- Added atomic promotion and rollback of the complete mixed prefix through the existing managed-deployment journal and re-verification flow.
+- Added automatic component selection. The CLI now chooses the Conda, Python, or mixed resolver, lock provider, driver, verifier, and inspector when the requested component is `auto`, which is now the default.
+- Added direct `mamba` executable support alongside `micromamba` and `conda`; `conda --solver libmamba` remains supported.
+- Replaced the generic mixed-ecosystem rejection with an actionable message directing explicit Conda-only resolution to `--resolver conda-pip` or automatic selection.
+- Added the `conda-pip-lock-v1` JSON Schema and schema-contract coverage for generated compound locks.
+- Added lifecycle and CLI integration tests covering mixed resolution, locking, apply, verification, promotion, ownership collisions, and mamba command construction.
+- Refactored Python prefix inspection into a shared implementation usable by both virtual environments and Python installations embedded inside Conda prefixes.
+
+The mixed backend intentionally uses a `pip-last` ownership policy. Packages requested directly in both Conda and pip fail resolution; transitive overlaps are recorded and pip becomes the verified final owner. R and general multi-layer composition remain out of scope for this release candidate.
+
 ## 0.7.4
 
 Security and integrity hardening revision. This completes the planned `0.7.x` hardening line; no R, composite-environment, or new ecosystem support was added.
