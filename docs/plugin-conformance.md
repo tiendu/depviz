@@ -64,6 +64,6 @@ Backend-specific tests are still required for command construction, native paylo
 
 ## Compatibility
 
-Plugin API major versions are strict. Depviz `0.7.x` uses Plugin API `2.0`. A v1 plugin is rejected during registration because the driver/verifier identity contract changed.
+Plugin API major versions are strict. Depviz `0.8.0rc1` uses Plugin API `2.0`. A v1 plugin is rejected during registration because the driver/verifier identity contract changed.
 
 Application versions, plugin API versions, plan schemas, and backend lock schemas are versioned independently.

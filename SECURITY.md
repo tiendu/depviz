@@ -2,9 +2,9 @@
 
 ## Supported versions
 
-Depviz is pre-1.0 software. Security fixes are provided for the latest released `0.7.x` revision only. Older revisions should be upgraded before reporting a defect against current behavior.
+Depviz is pre-1.0 software. Security fixes are provided for the latest released revision only. Older revisions should be upgraded before reporting a defect against current behavior.
 
-Version `0.7.4` is a hardened beta for controlled local environments. It is not certified for regulated, clinical, multi-tenant, or hostile-host deployments.
+Version `0.8.0rc1` is a release candidate for controlled local environments. It is not certified for regulated, clinical, multi-tenant, or hostile-host deployments.
 
 ## Reporting a vulnerability
 

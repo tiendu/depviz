@@ -8,12 +8,13 @@ It coordinates established package managers through a staged lifecycle:
 inspect -> resolve -> plan -> lock -> apply -> verify -> promote or roll back
 ```
 
-Version `0.7.x` implements the complete managed lifecycle for:
+Version `0.8.0rc1` implements the complete managed lifecycle for:
 
-- Conda environments through Conda or Micromamba
+- Conda environments through Conda, Mamba, or Micromamba
 - Python virtual environments through `uv`
+- mixed Conda prefixes with an exact pip wheel overlay
 
-Release status: **hardened beta**. Version `0.7.4` completes the planned `0.7.x` release-hardening series. It is suitable for controlled local dogfooding and non-critical local deployments, but is not presented as a regulated or unattended fleet controller. R and composite environments remain intentionally paused.
+Release status: **release candidate**. It is suitable for controlled local dogfooding and non-critical local deployments, but is not presented as a regulated or unattended fleet controller. R and general composite environments remain intentionally paused.
 
 The safety model is deliberately conservative:
 
@@ -62,8 +63,9 @@ make install
 Install the external backend tools you intend to use:
 
 ```text
-Conda backend   conda or micromamba
-Python backend  uv and a selected Python interpreter
+Conda backend       conda, mamba, or micromamba
+Python backend      uv and a selected Python interpreter
+Mixed backend       one Conda-family tool plus uv
 ```
 
 Depviz does not embed or reimplement their solvers.
@@ -83,13 +85,78 @@ depviz environment.yml --report impact --package htslib
 
 Inspection builds a metadata graph. It is not an environment solve, and its result can be marked `approximate` or `incomplete`.
 
+## Mixed Conda and pip lifecycle
+
+A normal Conda environment file may contain both package ecosystems:
+
+```yaml
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+
+dependencies:
+  - python=3.12
+  - pip
+  - samtools
+  - bcftools
+  - pip:
+      - pydantic>=2
+      - polars
+```
+
+Depviz detects this shape automatically. It solves the Conda layer first, binds the wheel resolution to the Python version and platform selected by that solve, and manages both layers inside one candidate prefix:
+
+```bash
+depviz resolve environment.yml \
+  --tool micromamba \
+  --platform osx-arm64 \
+  --output resolution.json
+
+depviz lock resolution.json --output lock.json
+
+depviz apply lock.json \
+  --deployment .depviz/mixed-app
+```
+
+The same command can use Mamba directly:
+
+```bash
+depviz resolve environment.yml \
+  --tool mamba \
+  --platform linux-64 \
+  --output resolution.json
+```
+
+Or Conda with libmamba:
+
+```bash
+depviz resolve environment.yml \
+  --tool conda \
+  --solver libmamba \
+  --platform linux-64 \
+  --output resolution.json
+```
+
+The compound lock contains validated child Conda and Python locks. Apply installs exact Conda artifacts first and then exact SHA-256-pinned wheels into the candidate prefix without re-solving. Promotion and rollback switch the whole prefix atomically.
+
+Direct ownership collisions fail:
+
+```text
+numpy requested under dependencies
+numpy also requested under pip
+```
+
+Transitive overlaps are recorded under a conservative `pip-last` policy, and verification treats the pip wheel as the final owner of that Python distribution. Prefer moving overlapping packages into one layer whenever possible.
+
+See [`docs/conda-pip-backend.md`](docs/conda-pip-backend.md) for the detailed guarantees and limitations.
+
 ## Conda lifecycle
 
 ### Resolve
 
 ```bash
 depviz resolve environment.yml \
-  --resolver conda-dry-run \
   --platform linux-64 \
   --output conda-resolution.json
 ```

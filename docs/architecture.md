@@ -17,7 +17,7 @@ manifest
 
 Backends adapt established package managers. They do not replace core planning, policy, candidate-state, verification-recording, promotion, rollback, or recovery semantics.
 
-Version `0.7.x` implements this lifecycle for managed Conda and Python environments.
+Version `0.8.0rc1` implements this lifecycle for managed Conda, Python, and mixed Conda-plus-pip environments.
 
 ## Dependency direction
 
@@ -114,6 +114,20 @@ Capability negotiation is explicit. Guarantee capabilities such as `HASH_LOCKING
 Drivers and verifiers declare explicit `environment_kind` and `deployment_kind` values. Locks carry the same identities. Core rejects cross-backend combinations before creating or verifying a candidate.
 
 Promotion and rollback are not backend protocols. They are core operations over complete managed candidates. A backend contributes the exact lock, driver, and verifier needed by those operations.
+
+The mixed backend is a concrete composition inside one candidate prefix:
+
+```text
+CondaPipResolver
+├── CondaDryRunResolver
+└── uv wheel resolution bound to the resolved Conda Python
+
+CondaPipPrefixDriver
+├── exact Conda prefix application
+└── exact pip wheel overlay into that prefix
+```
+
+The compound behavior remains backend-owned. Core planning, deployment records, verification recording, promotion, rollback, and recovery are unchanged. This proves composition without introducing a generic layer graph before R or another real backend requires one.
 
 ## Core versus registry
 

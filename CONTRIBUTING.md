@@ -153,4 +153,4 @@ The shared suite exercises registration, health checks, resolution, lock round-t
 
 Plugin API compatibility is based on `PLUGIN_API_VERSION`, independently from the Depviz application version and plan/lock schema versions.
 
-An incompatible API major version is rejected during registration. Depviz `0.7.x` uses Plugin API `2.0`; v1 plugins must be updated to declare explicit environment and deployment kinds.
+An incompatible API major version is rejected during registration. Depviz `0.8.0rc1` uses Plugin API `2.0`; v1 plugins must be updated to declare explicit environment and deployment kinds.
