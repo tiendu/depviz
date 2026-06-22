@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0rc2
+
+Mamba adapter bug-fix release candidate.
+
+- Fixed full `mamba` execution to use Conda-compatible `--subdir`, `--no-default-packages`, and `--no-pin` flags instead of Micromamba's standalone `--platform` mode.
+- Stopped overriding `MAMBA_ROOT_PREFIX` for full Mamba and Conda. Only standalone Micromamba now receives an isolated temporary root prefix.
+- Applied the same isolation and pinning rules to exact-lock installation, not only dry-run resolution.
+- Improved generic libmamba `unsupported request` failures with tool version, target platform, and actionable fallback commands.
+- Added regression coverage for Mamba resolve/apply command construction and tool-specific environment isolation.
+
 ## 0.8.0rc1
 
 Mixed Conda and pip environment release candidate. This release fixes the real-world case where a Conda `environment.yml` contains a `pip:` subsection and adds a push-ready implementation without resuming R work.
