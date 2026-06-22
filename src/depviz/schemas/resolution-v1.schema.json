@@ -1,0 +1,373 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://depviz.dev/schemas/resolution-v1.schema.json",
+  "title": "Depviz Resolution v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "status",
+    "target",
+    "backend",
+    "requested",
+    "packages",
+    "diagnostics",
+    "native_payload"
+  ],
+  "properties": {
+    "schema": {
+      "const": "depviz.resolution"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "status": {
+      "enum": [
+        "complete",
+        "incomplete",
+        "failed"
+      ]
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "platform",
+        "python_version",
+        "implementation"
+      ],
+      "properties": {
+        "platform": {
+          "type": "string",
+          "minLength": 1
+        },
+        "python_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "implementation": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "requested": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/requirement"
+      }
+    },
+    "packages": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/package"
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    },
+    "native_payload": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schema",
+            "data"
+          ],
+          "properties": {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "data": {
+              "type": "object"
+            }
+          }
+        }
+      ]
+    },
+    "backend": {
+      "$ref": "#/$defs/backend"
+    }
+  },
+  "$defs": {
+    "origin": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "line",
+            "column"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "line": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "column": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            }
+          }
+        }
+      ]
+    },
+    "requirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ecosystem",
+        "name",
+        "specifier",
+        "source",
+        "marker",
+        "extras",
+        "direct",
+        "origin"
+      ],
+      "properties": {
+        "ecosystem": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "specifier": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "marker": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "extras": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "direct": {
+          "type": "boolean"
+        },
+        "origin": {
+          "$ref": "#/$defs/origin"
+        }
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ecosystem",
+        "name",
+        "specifier",
+        "marker"
+      ],
+      "properties": {
+        "ecosystem": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "specifier": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "marker": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ecosystem",
+        "name",
+        "version",
+        "build",
+        "platform",
+        "source",
+        "artifact",
+        "checksum",
+        "dependencies"
+      ],
+      "properties": {
+        "ecosystem": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "build": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "platform": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "artifact": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "checksum": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/dependency"
+          }
+        }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message",
+        "severity",
+        "source",
+        "hint"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ]
+        },
+        "source": {
+          "$ref": "#/$defs/origin"
+        },
+        "hint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "backend": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "component",
+            "plugin",
+            "plugin_version",
+            "tool",
+            "tool_version"
+          ],
+          "properties": {
+            "component": {
+              "type": "string",
+              "minLength": 1
+            },
+            "plugin": {
+              "type": "string",
+              "minLength": 1
+            },
+            "plugin_version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tool": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "tool_version": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

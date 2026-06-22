@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://depviz.dev/schemas/pending-switch-v1.schema.json",
+  "title": "Depviz pending deployment switch v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "operation",
+    "from_candidate_id",
+    "to_candidate_id",
+    "next_state"
+  ],
+  "properties": {
+    "schema": {"const": "depviz.deployment-switch"},
+    "schema_version": {"const": 1},
+    "operation": {"enum": ["promote", "rollback"]},
+    "from_candidate_id": {"type": ["string", "null"]},
+    "to_candidate_id": {"type": "string", "minLength": 1},
+    "next_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["current_candidate_id", "history", "updated_at"],
+      "properties": {
+        "current_candidate_id": {"type": ["string", "null"]},
+        "history": {"type": "array", "items": {"type": "string"}},
+        "updated_at": {"type": "string", "format": "date-time"}
+      }
+    }
+  }
+}

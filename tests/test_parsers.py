@@ -171,3 +171,22 @@ def test_get_parser_rejects_unknown_file() -> None:
     with pytest.raises(ValueError):
         get_parser(Path("package.json"))
 
+
+def test_conda_name_normalization_preserves_leading_underscore() -> None:
+    from depviz.api import Requirement
+
+    requirement = Requirement(ecosystem="conda", name="_libgcc_mutex")
+
+    assert requirement.name == "_libgcc_mutex"
+
+
+def test_conda_parser_preserves_leading_underscore_package_name(tmp_path: Path) -> None:
+    manifest = tmp_path / "environment.yml"
+    manifest.write_text(
+        "channels:\n  - conda-forge\ndependencies:\n  - _libgcc_mutex=0.1\n",
+        encoding="utf-8",
+    )
+
+    result = CondaYamlParser().parse(manifest)
+
+    assert result.intent.requirements[0].name == "_libgcc_mutex"

@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://depviz.dev/schemas/plan-v1.schema.json",
+  "title": "Depviz Change Plan v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "plan_id",
+    "created_at",
+    "manifest_digest",
+    "current_state_digest",
+    "resolution_digest",
+    "native_transaction_digest",
+    "target",
+    "before",
+    "after",
+    "operations",
+    "policy_findings",
+    "preconditions"
+  ],
+  "properties": {
+    "schema": { "const": "depviz.plan" },
+    "schema_version": { "const": 1 },
+    "plan_id": { "$ref": "#/$defs/sha256" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "manifest_digest": { "$ref": "#/$defs/sha256" },
+    "current_state_digest": { "$ref": "#/$defs/sha256" },
+    "resolution_digest": { "$ref": "#/$defs/sha256" },
+    "native_transaction_digest": {
+      "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/sha256" }]
+    },
+    "target": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "kind"],
+          "properties": {
+            "path": { "type": "string" },
+            "kind": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+    "before": { "type": "object" },
+    "after": { "type": "object" },
+    "operations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/operation" }
+    },
+    "policy_findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    },
+    "preconditions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "value"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "value": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "package": {
+      "type": "object",
+      "required": [
+        "ecosystem", "name", "version", "build", "platform",
+        "source", "artifact", "checksum", "dependencies"
+      ]
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ecosystem", "name", "kind", "aspects",
+        "version_direction", "before", "after"
+      ],
+      "properties": {
+        "ecosystem": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["install", "remove", "modify", "unchanged"] },
+        "aspects": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": ["version", "build", "source", "artifact", "checksum", "platform"]
+          }
+        },
+        "version_direction": {
+          "type": ["string", "null"],
+          "enum": ["upgrade", "downgrade", "unknown", null]
+        },
+        "before": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/package" }]
+        },
+        "after": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/package" }]
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "severity", "package", "hint"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "message": { "type": "string" },
+        "severity": { "enum": ["info", "warning", "error"] },
+        "package": { "type": ["string", "null"] },
+        "hint": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

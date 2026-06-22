@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://depviz.dev/schemas/candidate-v1.schema.json",
+  "title": "Depviz candidate record v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "schema_version",
+    "candidate_id",
+    "relative_path",
+    "environment_kind",
+    "lock_id",
+    "lock_format",
+    "resolution_digest",
+    "status",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "schema": {
+      "const": "depviz.candidate"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "candidate_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "relative_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "environment_kind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "lock_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "resolution_digest": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "created",
+        "applied",
+        "verified",
+        "verification-failed",
+        "failed",
+        "removed"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "updated_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "verification_expected_digest": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "verification_observed_digest": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lock_format": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": false
+}

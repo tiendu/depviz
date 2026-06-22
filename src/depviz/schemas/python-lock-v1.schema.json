@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://depviz.dev/schemas/python-lock-v1.schema.json",
+  "title": "Depviz Python Lock v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "lock_id",
+    "created_at",
+    "resolution_digest",
+    "resolution",
+    "interpreter",
+    "artifacts"
+  ],
+  "properties": {
+    "schema": { "const": "depviz.python-lock" },
+    "schema_version": { "const": 1 },
+    "lock_id": { "$ref": "#/$defs/sha256" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "resolution_digest": { "$ref": "#/$defs/sha256" },
+    "resolution": { "type": "object" },
+    "interpreter": { "$ref": "#/$defs/interpreter" },
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/artifact" }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "interpreter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["implementation", "version", "major", "minor", "platform", "soabi"],
+      "properties": {
+        "implementation": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "major": { "type": "integer", "minimum": 3 },
+        "minor": { "type": "integer", "minimum": 0 },
+        "platform": { "type": "string", "minLength": 1 },
+        "soabi": { "type": "string" }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "platform", "source", "url", "checksum"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "platform": { "type": "string", "minLength": 1 },
+        "source": { "type": "string", "minLength": 1 },
+        "url": {
+          "type": "string",
+          "pattern": "^(https|file)://.+\\.whl$"
+        },
+        "checksum": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

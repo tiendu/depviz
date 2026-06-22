@@ -1,0 +1,1 @@
+PLUGIN_API_VERSION = "2.0"

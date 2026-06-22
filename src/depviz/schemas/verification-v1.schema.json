@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://depviz.dev/schemas/verification-v1.schema.json",
+  "title": "Depviz verification report v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "schema_version",
+    "report_id",
+    "created_at",
+    "candidate_id",
+    "candidate_path",
+    "lock_id",
+    "passed",
+    "expected_state_digest",
+    "observed_state_digest",
+    "diagnostics"
+  ],
+  "properties": {
+    "schema": {"const": "depviz.verification"},
+    "schema_version": {"const": 1},
+    "report_id": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "minLength": 1},
+    "candidate_id": {"type": "string", "minLength": 1},
+    "candidate_path": {"type": "string", "minLength": 1},
+    "lock_id": {"type": "string", "minLength": 1},
+    "passed": {"type": "boolean"},
+    "expected_state_digest": {"type": "string", "minLength": 1},
+    "observed_state_digest": {"type": ["string", "null"]},
+    "diagnostics": {"type": "array", "items": {"type": "object"}}
+  },
+  "additionalProperties": false
+}

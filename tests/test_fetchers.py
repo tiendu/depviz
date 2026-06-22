@@ -67,4 +67,3 @@ def test_conda_fetcher_ignores_invalid_root_entries() -> None:
     deps = CondaFetcher._parse_direct_dependencies(data)
 
     assert deps == set()
-

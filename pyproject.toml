@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "depviz"
-version = "0.2.0"
-description = "Inspect dependency graphs for PyPI and Conda/Bioconda manifests."
+version = "0.7.4"
+description = "Safely inspect, resolve, plan, lock, apply, verify, promote, and roll back dependency environments."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -14,13 +14,16 @@ authors = [
 ]
 dependencies = [
   "packaging>=24.0",
+  "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0",
   "ruff>=0.6.0",
-  "mypy>=1.10"
+  "mypy>=1.10",
+  "types-PyYAML>=6.0",
+  "jsonschema>=4.23"
 ]
 
 [project.scripts]
@@ -31,6 +34,14 @@ packages = ["src/depviz"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+  "hardening: deterministic, corruption, cleanup, and regression tests",
+  "integration: exercises multiple components or a real subprocess",
+  "compatibility: package-manager and output-format compatibility tests",
+  "failure_injection: crash, concurrency, and filesystem failure tests",
+  "security: trust-boundary and integrity regression tests",
+  "network: requires external network access",
+]
 
 [tool.ruff]
 line-length = 100

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://depviz.dev/schemas/deployment-v1.schema.json",
+  "title": "Depviz managed deployment state v1",
+  "type": "object",
+  "required": ["schema", "schema_version", "current_candidate_id", "history", "updated_at"],
+  "properties": {
+    "schema": {"const": "depviz.deployment"},
+    "schema_version": {"const": 1},
+    "current_candidate_id": {"type": ["string", "null"]},
+    "history": {"type": "array", "items": {"type": "string"}},
+    "updated_at": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": false
+}
