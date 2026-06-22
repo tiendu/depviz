@@ -35,7 +35,7 @@ dependencies:
   # BioPython / genomics Python tools
   - biopython
   - pysam
-  - pyvcf
+  - pyvcf3
 
   # R stack
   - r-base=4.4
