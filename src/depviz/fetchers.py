@@ -1,3 +1,28 @@
-"""Compatibility imports for metadata inspection moved to :mod:`depviz.core.inspection`."""
+"""Compatibility facade for approximate metadata inspection.
 
-from depviz.core.inspection import *  # noqa: F403
+New code should import from :mod:`depviz.core.inspection`.
+"""
+
+from depviz.core.inspection import (
+    CondaFetcher,
+    FetcherRegistry,
+    FetchResult,
+    FetchStatus,
+    MetadataFetcher,
+    MetadataFetcherProvider,
+    PyPIFetcher,
+    build_graph_concurrently,
+    inspect_dependency_graph,
+)
+
+__all__ = [
+    "CondaFetcher",
+    "FetcherRegistry",
+    "FetchResult",
+    "FetchStatus",
+    "MetadataFetcher",
+    "MetadataFetcherProvider",
+    "PyPIFetcher",
+    "build_graph_concurrently",
+    "inspect_dependency_graph",
+]

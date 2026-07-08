@@ -14,7 +14,7 @@ class PythonHealthCheck:
 
     def check(self, context: OperationContext) -> tuple[Diagnostic, ...]:
         settings = uv_settings(context, error=_health_error)
-        runner = runner_for(context)
+        runner = runner_for(context, backend=self.name, operation="doctor")
         runtime = read_python_runtime(
             runner=runner,
             settings=settings,

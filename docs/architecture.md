@@ -17,7 +17,7 @@ manifest
 
 Backends adapt established package managers. They do not replace core planning, policy, candidate-state, verification-recording, promotion, rollback, or recovery semantics.
 
-Version `0.8.0rc1` implements this lifecycle for managed Conda, Python, and mixed Conda-plus-pip environments.
+The current release candidate implements this lifecycle for managed Conda, Python, and mixed Conda-plus-pip environments.
 
 ## Dependency direction
 
@@ -101,6 +101,7 @@ dependencies
 
 The public extension surface remains coarse:
 
+- `PluginCatalog` (read-only application lookup)
 - `HealthCheck`
 - `ManifestLoader`
 - `EnvironmentInspector`

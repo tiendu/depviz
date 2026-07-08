@@ -8,7 +8,7 @@ It coordinates established package managers through a staged lifecycle:
 inspect -> resolve -> plan -> lock -> apply -> verify -> promote or roll back
 ```
 
-Version `0.8.0rc1` implements the complete managed lifecycle for:
+The current release candidate implements:
 
 - Conda environments through Conda, Mamba, or Micromamba
 - Python virtual environments through `uv`
@@ -69,6 +69,34 @@ Mixed backend       one Conda-family tool plus uv
 ```
 
 Depviz does not embed or reimplement their solvers.
+
+### Portable executable
+
+A host-native single-file executable can be built with:
+
+```bash
+make binary
+./dist/depviz --help
+```
+
+The executable contains Depviz, its Python runtime, and its Python library
+requirements. It intentionally does **not** embed Conda, Mamba, Micromamba, uv,
+or an arbitrary target Python installation. Backend tools remain independently
+upgradable and must be installed on `PATH` or supplied with `--executable`,
+`--uv-executable`, and `--python`.
+
+Builds are platform-specific. The release workflow publishes separate
+bundles for Linux x86-64 and arm64, macOS x86-64 and arm64, and Windows
+x86-64, together with SHA-256 checksum files. A binary built for one operating
+system and CPU architecture is not a universal cross-platform binary.
+
+External entry-point plugins are supported by normal Python installations;
+frozen binaries contain the built-in plugins. Linux release binaries are built
+on the oldest supported CI image so they do not accidentally require a newer
+GNU C Library than necessary.
+
+See [Portable distribution](docs/portable-distribution.md) for the release
+matrix, runtime boundaries, and signing requirements.
 
 ## Dependency-risk inspection
 
@@ -491,6 +519,7 @@ make test
 make lint
 make format-check
 make typecheck
+make deadcode
 make check
 ```
 
@@ -503,6 +532,7 @@ See:
 - `docs/deployment-lifecycle.md`
 - `docs/plugin-conformance.md`
 - `docs/maintenance.md`
+- `docs/maintainability.md`
 - `CONTRIBUTING.md`
 
 ## License

@@ -17,6 +17,7 @@ from depviz.api import (
     ResolutionStatus,
     Severity,
     Target,
+    require_command_runner,
 )
 from depviz.api.errors import ResolutionFailed, ToolUnavailable
 from depviz.builtin.conda.security import (
@@ -37,7 +38,6 @@ from depviz.builtin.conda.transaction import (
     parse_link_packages,
     solver_failure_message,
 )
-from depviz.infrastructure import LocalCommandRunner
 
 
 class CondaDryRunResolver:
@@ -62,7 +62,7 @@ class CondaDryRunResolver:
         output_limit = settings.output_limit
         channels = _effective_channels(intent)
         secrets = credential_secrets(channels)
-        runner = context.command_runner or LocalCommandRunner()
+        runner = require_command_runner(context, backend=self.name, operation="resolve")
 
         tool_version = read_tool_version(
             runner=runner,

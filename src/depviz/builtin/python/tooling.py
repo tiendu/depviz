@@ -2,16 +2,20 @@ from __future__ import annotations
 
 import json
 import os
-import platform
 import sys
 import sysconfig
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from depviz.api import Command, CommandResult, CommandRunner, OperationContext
+from depviz.api import (
+    Command,
+    CommandResult,
+    CommandRunner,
+    OperationContext,
+    require_command_runner,
+)
 from depviz.api.errors import BackendError, ToolUnavailable
-from depviz.infrastructure import LocalCommandRunner
 from depviz.infrastructure.tool_versions import extract_tool_version
 
 _UV_ENVIRONMENT = (
@@ -90,7 +94,13 @@ def uv_settings(
     error: Callable[[str], BackendError],
 ) -> UvSettings:
     executable = context.configuration.get("python.uv_executable", "uv").strip()
-    interpreter = context.configuration.get("python.interpreter", sys.executable).strip()
+    configured_interpreter = context.configuration.get("python.interpreter")
+    if configured_interpreter is not None:
+        interpreter = configured_interpreter.strip()
+    elif context.runtime_tools is not None:
+        interpreter = context.runtime_tools.default_python_interpreter() or ""
+    else:
+        interpreter = sys.executable
     try:
         timeout_seconds = float(context.configuration.get("python.timeout_seconds", "300"))
         output_limit = int(context.configuration.get("python.output_limit", str(32 * 1024 * 1024)))
@@ -99,7 +109,11 @@ def uv_settings(
     if not executable:
         raise error("Python backend uv executable cannot be empty")
     if not interpreter:
-        raise error("Python backend interpreter cannot be empty")
+        raise error(
+            "No reusable Python interpreter was found. Install a matching Python "
+            "interpreter or pass --python /path/to/python. Portable Depviz binaries "
+            "do not use their launcher executable as a target interpreter."
+        )
     if timeout_seconds <= 0:
         raise error("Python backend timeout must be positive")
     if output_limit < 1:
@@ -107,8 +121,13 @@ def uv_settings(
     return UvSettings(executable, interpreter, timeout_seconds, output_limit)
 
 
-def runner_for(context: OperationContext) -> CommandRunner:
-    return context.command_runner or LocalCommandRunner()
+def runner_for(
+    context: OperationContext,
+    *,
+    backend: str,
+    operation: str,
+) -> CommandRunner:
+    return require_command_runner(context, backend=backend, operation=operation)
 
 
 def isolated_uv_environment(*, cache_dir: Path | None = None) -> dict[str, str]:
@@ -254,15 +273,6 @@ def require_host_compatible_runtime(
                 "refusing to guess wheel compatibility"
             ),
         )
-
-
-def current_runtime_identity() -> tuple[str, str, str, str]:
-    return (
-        sys.implementation.name,
-        platform.python_version(),
-        sysconfig.get_platform(),
-        str(sysconfig.get_config_var("SOABI") or ""),
-    )
 
 
 def _run(

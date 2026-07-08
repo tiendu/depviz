@@ -44,10 +44,6 @@ class LockFailed(BackendError):
     pass
 
 
-class IncompleteResolution(BackendError):
-    pass
-
-
 class ApplyFailed(BackendError):
     pass
 
@@ -73,8 +69,4 @@ class PluginRegistrationError(PluginError):
 
 
 class PluginCompatibilityError(PluginError):
-    pass
-
-
-class UnsupportedCapabilityError(PluginError):
     pass

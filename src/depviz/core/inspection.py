@@ -15,7 +15,6 @@ from packaging.requirements import InvalidRequirement, Requirement
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
 from depviz.api import Command, CommandRunner, Diagnostic, Severity
-from depviz.infrastructure import LocalCommandRunner
 from depviz.analysis.graph import DependencyGraph, GraphInspection, InspectionStatus, Package
 from depviz.parsers import ParseResult
 
@@ -37,6 +36,10 @@ class FetchResult:
 
 class MetadataFetcher(Protocol):
     def fetch(self, package: Package) -> FetchResult: ...
+
+
+class MetadataFetcherProvider(Protocol):
+    def get(self, package: Package) -> MetadataFetcher: ...
 
 
 class PyPIFetcher:
@@ -192,7 +195,7 @@ class CondaFetcher:
         command_runner: CommandRunner | None = None,
     ) -> None:
         self.channels = channels or ["bioconda", "conda-forge"]
-        self.command_runner = command_runner or LocalCommandRunner()
+        self.command_runner = command_runner
 
     def fetch(self, package: Package) -> FetchResult:
         executable = self._find_conda_executable()
@@ -210,6 +213,12 @@ class CondaFetcher:
                         severity=Severity.ERROR,
                     ),
                 ),
+            )
+
+        if self.command_runner is None:
+            return _conda_failure(
+                package,
+                "no command runner was provided by the application composition root",
             )
 
         package_spec = f"{package.name}{package.constraint or ''}"
@@ -339,7 +348,7 @@ def inspect_dependency_graph(
     parse_result: ParseResult,
     max_workers: int = 12,
     max_depth: int = 3,
-    registry: FetcherRegistry | None = None,
+    registry: MetadataFetcherProvider | None = None,
 ) -> GraphInspection:
     if max_workers < 1:
         raise ValueError("max_workers must be at least 1")

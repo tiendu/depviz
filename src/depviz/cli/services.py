@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 
-from depviz.api import CommandRunner
-from depviz.plugins.registry import PluginRegistry
+from depviz.api import CommandRunner, PluginCatalog, RuntimeTools
 
 
 @dataclass(frozen=True)
 class ApplicationServices:
-    registry: PluginRegistry
+    registry: PluginCatalog
     command_runner: CommandRunner
+    runtime_tools: RuntimeTools | None = None

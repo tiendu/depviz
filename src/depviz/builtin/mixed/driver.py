@@ -119,7 +119,9 @@ def _install_python_overlay(
             message=message,
         ),
     )
-    runner = runner_for(context)
+    runner = runner_for(
+        context, backend="conda-pip-prefix-driver", operation="apply Python overlay"
+    )
     interpreter = python_executable(candidate.path)
     if not interpreter.is_file():
         raise ApplyFailed(

@@ -12,12 +12,12 @@ from depviz.api import (
     Severity,
     VerificationPolicy,
     VerificationReport,
+    require_command_runner,
 )
 from depviz.api.errors import InspectionFailed, VerificationFailed
 from depviz.builtin.conda.inspector import CondaPrefixInspector
 from depviz.builtin.conda.tooling import tool_settings
 from depviz.core.resolution import package_set_digest
-from depviz.infrastructure import LocalCommandRunner
 
 
 class CondaPrefixVerifier:
@@ -152,7 +152,7 @@ class CondaPrefixVerifier:
         if not policy.commands:
             return []
         settings = tool_settings(context, error=_verification_configuration_error)
-        runner = context.command_runner or LocalCommandRunner()
+        runner = require_command_runner(context, backend=self.name, operation="verify")
         base_environment = {
             "CONDA_PREFIX": str(environment.path),
             "CONDA_DEFAULT_ENV": str(environment.path),

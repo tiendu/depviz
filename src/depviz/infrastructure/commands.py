@@ -6,13 +6,48 @@ import subprocess
 import tempfile
 import time
 from collections.abc import Mapping
-from typing import BinaryIO
+from dataclasses import dataclass
+from typing import BinaryIO, Protocol
 
 from depviz.api import Command, CommandResult
 
 
+class SubprocessEnvironment(Protocol):
+    def build(
+        self,
+        overrides: Mapping[str, str] | None,
+        remove: tuple[str, ...],
+    ) -> dict[str, str]: ...
+
+
+@dataclass(frozen=True)
+class HostSubprocessEnvironment:
+    """Build an environment suitable for launching host-native tools.
+
+    Frozen Python launchers may prepend private library paths. Passing those
+    paths to Conda, uv, Python, or user probes can load incompatible libraries,
+    so the original loader environment is restored before every subprocess.
+    """
+
+    def build(
+        self,
+        overrides: Mapping[str, str] | None,
+        remove: tuple[str, ...],
+    ) -> dict[str, str]:
+        environment = dict(os.environ)
+        _restore_host_loader_paths(environment)
+        for name in remove:
+            environment.pop(name, None)
+        if overrides:
+            environment.update(overrides)
+        return environment
+
+
 class LocalCommandRunner:
     """Run commands without a shell and with bounded captured output."""
+
+    def __init__(self, environment: SubprocessEnvironment | None = None) -> None:
+        self._environment = environment or HostSubprocessEnvironment()
 
     def run(
         self,
@@ -29,7 +64,7 @@ class LocalCommandRunner:
         if output_limit < 1:
             raise ValueError("output_limit must be at least 1")
 
-        environment = _build_environment(command.environment, command.remove_environment)
+        environment = self._environment.build(command.environment, command.remove_environment)
         started = time.monotonic()
         timed_out = False
 
@@ -67,15 +102,15 @@ class LocalCommandRunner:
         )
 
 
-def _build_environment(
-    overrides: Mapping[str, str] | None, remove: tuple[str, ...]
-) -> dict[str, str]:
-    environment = dict(os.environ)
-    for name in remove:
-        environment.pop(name, None)
-    if overrides:
-        environment.update(overrides)
-    return environment
+def _restore_host_loader_paths(environment: dict[str, str]) -> None:
+    for name in ("LD_LIBRARY_PATH", "LIBPATH"):
+        original = environment.pop(f"{name}_ORIG", None)
+        if original is None:
+            environment.pop(name, None)
+        elif original:
+            environment[name] = original
+        else:
+            environment.pop(name, None)
 
 
 def _terminate_process_group(process: subprocess.Popen[bytes]) -> None:

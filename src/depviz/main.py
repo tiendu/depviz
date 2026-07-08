@@ -10,7 +10,7 @@ from depviz.cli.dispatch import dispatch
 from depviz.cli.exit_codes import ExitCode
 from depviz.cli.parser import parse_args
 from depviz.cli.services import ApplicationServices
-from depviz.infrastructure import LocalCommandRunner
+from depviz.infrastructure import LocalCommandRunner, PathRuntimeTools
 from depviz.plugins.defaults import create_default_registry
 
 
@@ -19,6 +19,7 @@ def run(args: argparse.Namespace) -> int:
         services = ApplicationServices(
             registry=create_default_registry(),
             command_runner=LocalCommandRunner(),
+            runtime_tools=PathRuntimeTools(),
         )
     except PluginError as error:
         logging.getLogger(__name__).error("Plugin registration failed: %s", error)

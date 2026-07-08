@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.8.0rc6
+
+Portable executable release candidate.
+
+- Added repeatable PyInstaller single-file builds for Linux, macOS, and Windows.
+- Added a protocol-driven runtime-tool locator so frozen launchers never masquerade as target Python interpreters.
+- Restored host dynamic-library paths before invoking Conda, uv, Python, or probe subprocesses from frozen builds.
+- Added portable-runtime regression tests and a tagged binary-build workflow.
+- Publish checksummed binary bundles for Linux x86-64/arm64, macOS x86-64/arm64, and Windows x86-64 as GitHub Release assets.
+
+## 0.8.0rc5
+
+Maintainability and explicit-service-boundary release candidate.
+
+- Added a structural `PluginCatalog` interface so CLI and doctor workflows no longer depend on the concrete mutable registry.
+- Removed implicit `LocalCommandRunner` construction from package-manager backends; command execution is now supplied by the composition root and validated explicitly.
+- Passed the shared command runner into approximate Conda graph inspection instead of creating hidden infrastructure.
+- Replaced wildcard compatibility re-exports with explicit, reviewable public surfaces.
+- Removed unused private planning and runtime-identity helpers and two unreferenced exception types.
+- Added a structural metadata-fetcher provider and removed inheritance from its test doubles.
+- Hardened release metadata checks for dynamic Hatch versioning, added high-confidence dead-code detection to the release gate, and documented maintainability rules.
+
 ## 0.8.0rc4
 
 Conda-family tool discovery and Miniforge integration release candidate.

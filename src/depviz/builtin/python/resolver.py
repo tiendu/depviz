@@ -54,7 +54,7 @@ class UvResolver:
         del target, current
         _validate_intent(intent)
         settings = uv_settings(context, error=_resolution_error)
-        runner = runner_for(context)
+        runner = runner_for(context, backend=self.name, operation="resolve")
         secrets = credential_secrets(
             (*intent.indexes, *(item.source or "" for item in intent.requirements))
         )

@@ -2,7 +2,6 @@ from depviz.api import DependencyIntent, Diagnostic, Requirement, Severity
 from depviz.fetchers import (
     FetchResult,
     FetchStatus,
-    FetcherRegistry,
     inspect_dependency_graph,
 )
 from depviz.models import InspectionStatus, Package
@@ -17,7 +16,7 @@ class StaticFetcher:
         return self.results[package.name]
 
 
-class StaticRegistry(FetcherRegistry):
+class StaticRegistry:
     def __init__(self, results: dict[str, FetchResult]) -> None:
         self.fetcher = StaticFetcher(results)
 

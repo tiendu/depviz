@@ -5,9 +5,8 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from depviz.api import Command, CommandRunner, OperationContext
+from depviz.api import Command, CommandRunner, OperationContext, require_command_runner
 from depviz.api.errors import BackendError, ToolUnavailable
-from depviz.infrastructure import LocalCommandRunner
 from depviz.infrastructure.tool_versions import extract_tool_version
 
 DEFAULT_TIMEOUT_SECONDS = 300.0
@@ -203,7 +202,7 @@ def _discover_conda_tool(
     output_limit: int,
     error: Callable[[str], BackendError],
 ) -> tuple[str, str, str]:
-    runner = context.command_runner or LocalCommandRunner()
+    runner = require_command_runner(context, backend="conda-tool", operation="discover")
     failures: list[str] = []
     for tool in AUTO_TOOL_ORDER:
         executable = shutil.which(tool) or tool

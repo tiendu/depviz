@@ -1,7 +1,6 @@
-from depviz.api import Diagnostic, OperationContext, Severity
+from depviz.api import Diagnostic, OperationContext, Severity, require_command_runner
 from depviz.api.errors import BackendError
 from depviz.builtin.conda.tooling import read_tool_version, tool_settings
-from depviz.infrastructure import LocalCommandRunner
 
 
 class CondaHealthCheck:
@@ -9,7 +8,7 @@ class CondaHealthCheck:
 
     def check(self, context: OperationContext) -> tuple[Diagnostic, ...]:
         settings = tool_settings(context, error=_health_error)
-        runner = context.command_runner or LocalCommandRunner()
+        runner = require_command_runner(context, backend=self.name, operation="doctor")
         version = read_tool_version(
             runner=runner,
             settings=settings,

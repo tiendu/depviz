@@ -14,6 +14,7 @@ from depviz.api import (
     LockedResolution,
     OperationContext,
     Severity,
+    require_command_runner,
 )
 from depviz.api.errors import ApplyFailed, ToolUnavailable
 from depviz.builtin.conda.locking import locked_artifacts
@@ -24,7 +25,6 @@ from depviz.builtin.conda.tooling import (
     tool_settings,
 )
 from depviz.core.resolution import host_conda_platform
-from depviz.infrastructure import LocalCommandRunner
 from depviz.infrastructure.deployment import ManagedDeploymentStore
 
 
@@ -92,7 +92,7 @@ class CondaPrefixDriver:
             )
 
         settings = tool_settings(context, error=_apply_configuration_error)
-        runner = context.command_runner or LocalCommandRunner()
+        runner = require_command_runner(context, backend=self.name, operation="apply")
         tool_version = read_tool_version(
             runner=runner,
             settings=settings,

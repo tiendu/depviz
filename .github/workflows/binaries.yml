@@ -1,0 +1,106 @@
+name: Portable binaries
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install release dependencies
+        run: python -m pip install -e ".[dev,binary]"
+      - name: Run release gate
+        run: |
+          python -m ruff check .
+          python -m ruff format --check .
+          python -m mypy src
+          python -m vulture src tests --min-confidence 80
+          python -m pytest -m "not network"
+
+  build:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            artifact: depviz-linux-x86_64.tar.gz
+            executable: dist/depviz
+          - os: ubuntu-24.04-arm
+            artifact: depviz-linux-arm64.tar.gz
+            executable: dist/depviz
+          - os: macos-15-intel
+            artifact: depviz-macos-x86_64.tar.gz
+            executable: dist/depviz
+          - os: macos-15
+            artifact: depviz-macos-arm64.tar.gz
+            executable: dist/depviz
+          - os: windows-2025
+            artifact: depviz-windows-x86_64.zip
+            executable: dist/depviz.exe
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install binary-build dependencies
+        run: python -m pip install -e ".[binary]"
+      - name: Build single-file executable
+        run: python -m PyInstaller --clean --noconfirm packaging/depviz.spec
+      - name: Smoke test
+        shell: bash
+        run: |
+          "${{ matrix.executable }}" --help >/dev/null
+          "${{ matrix.executable }}" doctor >/dev/null
+      - name: Package and checksum artifact
+        shell: bash
+        run: |
+          python packaging/create_release_bundle.py \
+            "${{ matrix.executable }}" \
+            "${{ matrix.artifact }}"
+          python packaging/write_sha256.py "${{ matrix.artifact }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            ${{ matrix.artifact }}
+            ${{ matrix.artifact }}.sha256
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Publish GitHub release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release-assets/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" release-assets/* \
+              --verify-tag \
+              --generate-notes \
+              --title "$GITHUB_REF_NAME"
+          fi

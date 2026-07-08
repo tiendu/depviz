@@ -75,7 +75,7 @@ class PythonVenvDriver:
             )
         _validate_candidate(candidate)
         settings = uv_settings(context, error=_apply_error)
-        runner = runner_for(context)
+        runner = runner_for(context, backend=self.name, operation="apply")
         try:
             base_runtime = read_python_runtime(
                 runner=runner,

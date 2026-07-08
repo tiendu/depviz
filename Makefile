@@ -5,16 +5,18 @@ PYTHON := $(VENV)/bin/python
 PIP := $(PYTHON) -m pip
 DEPVIZ := $(VENV)/bin/depviz
 INSTALL_STAMP := $(VENV)/.depviz-installed
+VERSION_SOURCE := src/depviz/__init__.py
 
 BOOTSTRAP_PYTHON ?= python3
 ARGS ?=
 
-.PHONY: help venv install run test test-hardening test-compatibility test-failure-injection test-security lint format format-check typecheck check check-release clean
+.PHONY: help venv install install-binary run binary test test-hardening test-compatibility test-failure-injection test-security lint format format-check typecheck deadcode check check-release clean
 
 help:
 	@printf '%s\n' \
 		'make install      Create or repair .venv and install development dependencies' \
 		'make run          Run depviz; pass arguments with ARGS="..."' \
+		'make binary       Build a host-native single-file executable' \
 		'make test         Run the test suite' \
 		'make test-hardening Run deterministic and corruption regression tests' \
 		'make test-compatibility Run package-manager compatibility tests' \
@@ -24,6 +26,7 @@ help:
 		'make format       Format source and tests with Ruff' \
 		'make format-check Verify Ruff formatting without changes' \
 		'make typecheck    Run strict type checking' \
+		'make deadcode     Reject high-confidence unused code' \
 		'make check        Run tests, linting, and type checking' \
 		'make check-release Run the complete release-hardening gate' \
 		'make clean        Remove the virtual environment and generated artifacts'
@@ -43,11 +46,22 @@ venv:
 install: venv
 	@if [ ! -f "$(INSTALL_STAMP)" ] \
 		|| [ ! -x "$(DEPVIZ)" ] \
-		|| [ pyproject.toml -nt "$(INSTALL_STAMP)" ]; then \
+		|| [ pyproject.toml -nt "$(INSTALL_STAMP)" ] \
+		|| [ "$(VERSION_SOURCE)" -nt "$(INSTALL_STAMP)" ]; then \
 		printf '%s\n' "Installing depviz development environment"; \
 		$(PIP) install -e ".[dev]"; \
 		touch "$(INSTALL_STAMP)"; \
 	fi
+
+install-binary: venv
+	$(PIP) install -e ".[binary]"
+
+
+binary: install-binary
+	rm -rf build/depviz dist/depviz depviz.spec
+	$(PYTHON) -m PyInstaller --clean --noconfirm packaging/depviz.spec
+	./dist/depviz --help >/dev/null
+
 
 run: install
 	$(DEPVIZ) $(ARGS)
@@ -81,9 +95,12 @@ format-check: install
 typecheck: install
 	$(PYTHON) -m mypy src
 
-check: test lint format-check typecheck
+deadcode: install
+	$(VENV)/bin/vulture src tests --min-confidence 80
 
-check-release: lint format-check typecheck
+check: test lint format-check typecheck deadcode
+
+check-release: lint format-check typecheck deadcode
 	$(PYTHON) -m pytest -m "not network"
 
 clean:

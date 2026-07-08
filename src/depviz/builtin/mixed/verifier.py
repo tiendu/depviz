@@ -229,7 +229,7 @@ def _run_probes(
             message=message,
         ),
     )
-    runner = runner_for(context)
+    runner = runner_for(context, backend="conda-pip-prefix-verifier", operation="verify")
     diagnostics: list[Diagnostic] = []
     for index, argv in enumerate(commands, start=1):
         if not argv:

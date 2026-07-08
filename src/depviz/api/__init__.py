@@ -1,5 +1,13 @@
+from depviz.api.catalog import PluginCatalog
 from depviz.api.capabilities import Capability
-from depviz.api.context import Command, CommandResult, CommandRunner, OperationContext
+from depviz.api.context import (
+    Command,
+    CommandResult,
+    CommandRunner,
+    OperationContext,
+    RuntimeTools,
+    require_command_runner,
+)
 from depviz.api.diagnostics import Diagnostic, Severity, SourceLocation
 from depviz.api.models import (
     ApplyResult,
@@ -67,8 +75,10 @@ __all__ = [
     "LockProvider",
     "ManifestLoader",
     "OperationContext",
+    "RuntimeTools",
     "PLUGIN_API_VERSION",
     "PackageChange",
+    "PluginCatalog",
     "PackageReference",
     "PlanPrecondition",
     "PolicyFinding",
@@ -87,4 +97,5 @@ __all__ = [
     "Verifier",
     "VersionDirection",
     "normalize_package_name",
+    "require_command_runner",
 ]

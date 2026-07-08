@@ -24,7 +24,6 @@ from depviz.api import (
 )
 from depviz.api.errors import PlanningFailed
 from depviz.core.resolution import (
-    canonical_json_bytes,
     digest_json,
     environment_state_from_dict,
     environment_state_to_dict,
@@ -293,10 +292,6 @@ def finding_from_dict(value: Mapping[str, object]) -> PolicyFinding:
         package=_optional_string(value.get("package")),
         hint=_optional_string(value.get("hint")),
     )
-
-
-def plan_digest(plan: ChangePlan) -> str:
-    return f"sha256:{hashlib.sha256(canonical_json_bytes(plan_to_dict(plan))).hexdigest()}"
 
 
 def _timestamp(value: object, label: str) -> str:

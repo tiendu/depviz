@@ -262,7 +262,7 @@ def _resolve_python_overlay(
             backend="conda-pip", operation="resolve Python overlay", message=message
         ),
     )
-    runner = runner_for(context)
+    runner = runner_for(context, backend="conda-pip", operation="resolve Python overlay")
     secrets = credential_secrets(intent.indexes)
     try:
         uv_version = read_uv_version(

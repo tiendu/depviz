@@ -65,7 +65,7 @@ from depviz.cli.services import ApplicationServices
 from depviz.core.application import apply_locked_environment
 from depviz.core.doctor import run_doctor
 from depviz.core.garbage_collection import collect_candidates
-from depviz.core.inspection import inspect_dependency_graph
+from depviz.core.inspection import FetcherRegistry, inspect_dependency_graph
 from depviz.core.locking import create_lock, read_lock, write_lock
 from depviz.core.planning import build_change_plan, plan_to_json, write_plan_json
 from depviz.core.promotion import deployment_status, promote_candidate, rollback_deployment
@@ -135,7 +135,14 @@ def run_inspect(args: argparse.Namespace, services: ApplicationServices) -> int:
         return ExitCode.INVALID_INPUT
     try:
         loader = services.registry.find_manifest_loader(path)
-        intent = loader.load(path, OperationContext(working_directory=path.parent))
+        intent = loader.load(
+            path,
+            OperationContext(
+                command_runner=services.command_runner,
+                runtime_tools=services.runtime_tools,
+                working_directory=path.parent,
+            ),
+        )
     except (PluginError, BackendError) as error:
         logger.error(str(error))
         return ExitCode.UNSUPPORTED_MANIFEST
@@ -161,6 +168,10 @@ def run_inspect(args: argparse.Namespace, services: ApplicationServices) -> int:
             parse_result=parse_result,
             max_workers=args.workers,
             max_depth=args.depth,
+            registry=FetcherRegistry(
+                channels=list(parse_result.channels),
+                command_runner=services.command_runner,
+            ),
         )
         if not args.no_cache:
             save_inspection_cache(inspection, parse_result, cache_path)
@@ -346,6 +357,7 @@ def run_lock(args: argparse.Namespace, services: ApplicationServices) -> int:
             provider=provider,
             context=OperationContext(
                 command_runner=services.command_runner,
+                runtime_tools=services.runtime_tools,
                 configuration=lock_configuration,
             ),
         )
@@ -741,6 +753,7 @@ def _runtime_context(
     configuration = _common_backend_configuration(args)
     return OperationContext(
         command_runner=services.command_runner,
+        runtime_tools=services.runtime_tools,
         offline=args.offline,
         working_directory=working_directory,
         configuration=configuration,
@@ -790,6 +803,7 @@ def _solver_context(
         configuration["python.groups"] = ",".join(args.group)
     return OperationContext(
         command_runner=services.command_runner,
+        runtime_tools=services.runtime_tools,
         offline=args.offline,
         working_directory=path.parent,
         configuration=configuration,

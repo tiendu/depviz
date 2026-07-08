@@ -200,7 +200,7 @@ class PythonVenvVerifier:
         if not commands:
             return []
         settings = uv_settings(context, error=_verification_error)
-        runner = runner_for(context)
+        runner = runner_for(context, backend=self.name, operation="verify")
         bin_dir = environment.path / ("Scripts" if os.name == "nt" else "bin")
         base_environment = {
             "VIRTUAL_ENV": str(environment.path),

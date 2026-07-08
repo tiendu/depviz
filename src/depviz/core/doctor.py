@@ -3,11 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from depviz.api import OperationContext, Severity
 from depviz.api.errors import BackendError
 from depviz.infrastructure.deployment import CandidateStatus, ManagedDeploymentStore
 from depviz.infrastructure.process_locks import ProcessLock, ProcessLockTimeout
-from depviz.plugins.registry import PluginRegistry
+from depviz.api import OperationContext, PluginCatalog, Severity
 from depviz.plugins.validation import validate_plugin
 
 
@@ -28,7 +27,7 @@ class DoctorReport:
 
 
 def run_doctor(
-    registry: PluginRegistry,
+    registry: PluginCatalog,
     *,
     context: OperationContext | None = None,
     plugin_names: tuple[str, ...] = (),

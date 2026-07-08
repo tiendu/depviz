@@ -126,7 +126,7 @@ def inspect_python_prefix(
             message=f"Python environment has no interpreter: {interpreter}",
         )
     settings = uv_settings(context, error=lambda message: _inspection_error(backend, message))
-    runner = runner_for(context)
+    runner = runner_for(context, backend=backend, operation="inspect")
     try:
         runtime = read_python_runtime(
             runner=runner,
