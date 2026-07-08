@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import json
 import os
 import sys
@@ -98,9 +99,56 @@ def test_process_lock_is_released_after_exception(tmp_path: Path) -> None:
         pass
 
 
+def _process_is_effectively_running(pid: int) -> bool:
+    """Return whether *pid* is still executing rather than exited or zombified.
+
+    POSIX process state is inherently racy: a process may disappear after the
+    existence probe but before procfs is read.  ``kill(pid, 0)`` provides the
+    portable existence check, while Linux procfs lets the test treat a zombie
+    as already terminated even if it has not yet been reaped.
+    """
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # The process exists, but the current user cannot signal it.
+        return True
+
+    proc_root = Path("/proc")
+    if not proc_root.is_dir():
+        return True
+
+    stat_path = proc_root / str(pid) / "stat"
+    try:
+        fields = stat_path.read_text(encoding="utf-8").split()
+    except OSError as error:
+        if error.errno in {errno.ENOENT, errno.ESRCH}:
+            return False
+        raise
+
+    # A zombie has terminated and is only waiting for its parent to reap it.
+    return len(fields) <= 2 or fields[2] != "Z"
+
+
+def test_process_probe_treats_procfs_lookup_race_as_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(os, "kill", lambda _pid, _signal_number: None)
+    monkeypatch.setattr(Path, "is_dir", lambda path: True)
+
+    def process_disappeared(path: Path, *, encoding: str) -> str:
+        del path, encoding
+        raise ProcessLookupError(errno.ESRCH, "No such process")
+
+    monkeypatch.setattr(Path, "read_text", process_disappeared)
+
+    assert not _process_is_effectively_running(12345)
+
+
 @pytest.mark.skipif(os.name != "posix", reason="process-group cleanup uses POSIX sessions")
 @pytest.mark.integration
-def test_timeout_kills_spawned_child_process(tmp_path: Path) -> None:
+def test_timeout_kills_spawned_child_process() -> None:
     script = (
         "import subprocess, sys, time; "
         "p=subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)']); "
@@ -118,18 +166,8 @@ def test_timeout_kills_spawned_child_process(tmp_path: Path) -> None:
 
     deadline = time.monotonic() + 3
     while time.monotonic() < deadline:
-        stat_path = Path(f"/proc/{child_pid}/stat")
-
-        try:
-            fields = stat_path.read_text(encoding="utf-8").split()
-        except FileNotFoundError:
-            # The process exited between checking and reading /proc.
+        if not _process_is_effectively_running(child_pid):
             break
-
-        # A zombie is terminated but may remain briefly until reaped.
-        if len(fields) > 2 and fields[2] == "Z":
-            break
-
         time.sleep(0.05)
     else:
         pytest.fail(f"child process {child_pid} survived command timeout")
