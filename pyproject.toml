@@ -5,13 +5,11 @@ build-backend = "hatchling.build"
 [project]
 name = "depviz"
 dynamic = ["version"]
-description = "Safely inspect, resolve, plan, lock, apply, verify, promote, and roll back dependency environments."
+description = "Find dependency blast points and version conflicts in an installed environment."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [
-  { name = "Tien Du" }
-]
+authors = [{ name = "Tien Du" }]
 dependencies = [
   "packaging>=24.0",
   "PyYAML>=6.0",
@@ -23,12 +21,6 @@ dev = [
   "ruff>=0.6.0",
   "mypy>=1.10",
   "types-PyYAML>=6.0",
-  "jsonschema>=4.23",
-  "vulture>=2.14"
-]
-binary = [
-  "pyinstaller==6.21.0",
-  "pyinstaller-hooks-contrib==2026.6",
 ]
 
 [project.scripts]
@@ -42,14 +34,7 @@ packages = ["src/depviz"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = [
-  "hardening: deterministic, corruption, cleanup, and regression tests",
-  "integration: exercises multiple components or a real subprocess",
-  "compatibility: package-manager and output-format compatibility tests",
-  "failure_injection: crash, concurrency, and filesystem failure tests",
-  "security: trust-boundary and integrity regression tests",
-  "network: requires external network access",
-]
+pythonpath = ["src"]
 
 [tool.ruff]
 line-length = 100
@@ -58,4 +43,3 @@ target-version = "py311"
 [tool.mypy]
 python_version = "3.11"
 strict = true
-

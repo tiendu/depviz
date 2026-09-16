@@ -1,539 +1,197 @@
 # depviz
 
-Depviz is a **solver-backed dependency change controller**.
+`depviz` answers one question:
 
-It coordinates established package managers through a staged lifecycle:
+> **Which package is risky to change?**
+
+It does not install, resolve, lock, apply, promote, roll back, or manage environments.
+It reads dependency metadata already present in an environment, walks the graph backward,
+and reports blast points plus version-constraint problems.
+
+```bash
+depviz
+```
+
+Inside a Python or Conda environment, that prints packages ranked by:
+
+1. declared/top-level roots affected
+2. all transitive dependents affected
+3. direct dependents
+
+No opaque score is invented.
 
 ```text
-inspect -> resolve -> plan -> lock -> apply -> verify -> promote or roll back
+ROOTS TOTAL DIRECT   VERSION  PACKAGE
+    8    47     12        OK  openssl
+    6    51     18        OK  zlib
+    3    12      4  CONFLICT  htslib
 ```
 
-The current release candidate implements:
+## Give depviz your roots
 
-- Conda environments through Conda, Mamba, or Micromamba
-- Python virtual environments through `uv`
-- mixed Conda prefixes with an exact pip wheel overlay
-
-Release status: **release candidate**. It is suitable for controlled local dogfooding and non-critical local deployments, but is not presented as a regulated or unattended fleet controller. R and general composite environments remain intentionally paused.
-
-The safety model is deliberately conservative:
-
-- resolution is delegated to the package manager
-- locks select exact artifacts and checksums
-- apply consumes the lock without solving again
-- every apply creates a new isolated candidate
-- verification checks the complete installed package state
-- promotion and rollback re-verify immediately before switching
-- the active environment is selected through an atomic managed pointer
-- arbitrary existing environments are never mutated in place
-
-## Release validation
-
-The normal development gate is:
+Graph topology can only infer which packages you intentionally asked for. A manifest lets
+depviz use the real roots while still inspecting the installed environment:
 
 ```bash
-make check
+depviz environment.yml
+depviz requirements.txt
+depviz pyproject.toml
 ```
 
-The release gate runs all deterministic tests except explicitly network-marked tests:
+Supported root manifests are Conda `environment.yml`/`.yaml`, requirements `.txt`/`.in`,
+and `[project].dependencies` in `pyproject.toml`. Requirements `-r/--requirement` includes
+and `-c/--constraint` files are followed; constraint files contribute version evidence
+without becoming roots.
+
+For one package:
 
 ```bash
-make check-release
+depviz environment.yml openssl
 ```
 
-Hardening groups can be run independently:
-
-```bash
-make test-hardening
-make test-compatibility
-make test-failure-injection
-make test-security
-```
-
-Persistent state readers fail closed on unknown fields, future schema versions, malformed timestamps, truncated JSON, and identity mismatches. Plan and lock IDs remain full-document integrity hashes.
-
-## Installation
-
-```bash
-git clone https://github.com/tiendu/depviz.git
-cd depviz
-make install
-```
-
-Install the external backend tools you intend to use:
+Focused output includes one shortest dependency path from each affected root:
 
 ```text
-Conda backend       conda, mamba, or micromamba
-Python backend      uv and a selected Python interpreter
-Mixed backend       one Conda-family tool plus uv
+openssl 3.4.1
+  roots affected: 3 (git, python, samtools)
+  paths:
+    git -> libcurl -> openssl
+    python -> openssl
+    samtools -> htslib -> libcurl -> openssl
 ```
 
-Depviz does not embed or reimplement their solvers.
+Text output shows at most 20 paths; `--json` contains them all.
 
-### Portable executable
-
-A host-native single-file executable can be built with:
+Against the current environment without a manifest:
 
 ```bash
-make binary
-./dist/depviz --help
+depviz openssl
 ```
 
-The executable contains Depviz, its Python runtime, and its Python library
-requirements. It intentionally does **not** embed Conda, Mamba, Micromamba, uv,
-or an arbitrary target Python installation. Backend tools remain independently
-upgradable and must be installed on `PATH` or supplied with `--executable`,
-`--uv-executable`, and `--python`.
-
-Builds are platform-specific. The release workflow publishes separate
-bundles for Linux x86-64 and arm64, macOS x86-64 and arm64, and Windows
-x86-64, together with SHA-256 checksum files. A binary built for one operating
-system and CPU architecture is not a universal cross-platform binary.
-
-External entry-point plugins are supported by normal Python installations;
-frozen binaries contain the built-in plugins. Linux release binaries are built
-on the oldest supported CI image so they do not accidentally require a newer
-GNU C Library than necessary.
-
-See [Portable distribution](docs/portable-distribution.md) for the release
-matrix, runtime boundaries, and signing requirements.
-
-## Dependency-risk inspection
+Machine-readable output is intentionally a rendering option, not another command. JSON
+contains an explicit `schema_version` plus the producing `depviz_version` so downstream
+scripts can reject incompatible output deliberately:
 
 ```bash
-depviz inspect environment.yml --report blast
-depviz inspect requirements.txt --require-complete
+depviz environment.yml --json | jq '.packages[:10]'
 ```
 
-The legacy form remains supported:
+You can also point at an installed environment prefix:
 
 ```bash
-depviz environment.yml --report impact --package htslib
+depviz /opt/conda/envs/bio
 ```
 
-Inspection builds a metadata graph. It is not an environment solve, and its result can be marked `approximate` or `incomplete`.
+## What "risk" means
 
-## Mixed Conda and pip lifecycle
-
-A normal Conda environment file may contain both package ecosystems:
-
-```yaml
-channels:
-  - conda-forge
-  - bioconda
-  - nodefaults
-
-dependencies:
-  - python=3.12
-  - pip
-  - samtools
-  - bcftools
-  - pip:
-      - pydantic>=2
-      - polars
-```
-
-Depviz detects this shape automatically. It solves the Conda layer first, binds the wheel resolution to the Python version and platform selected by that solve, and manages both layers inside one candidate prefix. Conda-family tools are auto-detected in this order: `mamba`, `micromamba`, then `conda`:
-
-```bash
-depviz resolve environment.yml \
-  --platform osx-arm64 \
-  --output resolution.json
-
-depviz lock resolution.json --output lock.json
-
-depviz apply lock.json \
-  --deployment .depviz/mixed-app
-```
-
-Use an explicit frontend only when needed:
-
-```bash
-depviz resolve environment.yml \
-  --tool mamba \
-  --platform osx-arm64 \
-  --output resolution.json
-```
-
-Conda with libmamba remains available explicitly:
-
-```bash
-depviz resolve environment.yml \
-  --tool conda \
-  --solver libmamba \
-  --platform linux-64 \
-  --output resolution.json
-```
-
-The compound lock contains validated child Conda and Python locks. Apply installs exact Conda artifacts first and then exact SHA-256-pinned wheels into the candidate prefix without re-solving. Promotion and rollback switch the whole prefix atomically.
-
-Direct ownership collisions fail:
+For package `P`, depviz walks dependency edges backward.
 
 ```text
-numpy requested under dependencies
-numpy also requested under pip
+samtools ─┐
+          ├─> htslib ─> libcurl ─> openssl
+bcftools ─┘                       └> zlib
 ```
 
-Transitive overlaps are recorded under a conservative `pip-last` policy, and verification treats the pip wheel as the final owner of that Python distribution. Prefer moving overlapping packages into one layer whenever possible.
-
-See [`docs/conda-pip-backend.md`](docs/conda-pip-backend.md) for the detailed guarantees and limitations.
-
-## Conda lifecycle
-
-By default, Depviz discovers `mamba`, `micromamba`, or `conda` from the current environment. Miniforge installations therefore work without extra flags when `mamba` is on `PATH`. Use `--tool` or `--executable` to override discovery.
-
-### Resolve
-
-```bash
-depviz resolve environment.yml \
-  --platform linux-64 \
-  --output conda-resolution.json
-```
-
-Using Conda with libmamba:
-
-```bash
-depviz resolve environment.yml \
-  --resolver conda-dry-run \
-  --tool conda \
-  --solver libmamba \
-  --platform linux-64 \
-  --output conda-resolution.json
-```
-
-### Plan
-
-Against an existing prefix:
-
-```bash
-depviz plan environment.yml \
-  --resolver conda-dry-run \
-  --inspector conda-prefix \
-  --prefix .conda/envs/current \
-  --platform linux-64 \
-  --output conda-plan.json
-```
-
-For a new environment:
-
-```bash
-depviz plan environment.yml \
-  --resolver conda-dry-run \
-  --empty \
-  --platform linux-64 \
-  --output conda-plan.json
-```
-
-### Lock and apply
-
-```bash
-depviz lock conda-resolution.json \
-  --provider conda-exact-lock \
-  --output conda-lock.json
-
-depviz apply conda-lock.json \
-  --provider conda-exact-lock \
-  --driver conda-prefix-driver \
-  --deployment .depviz/conda-app
-```
-
-Conda locks require SHA-256 by default. A legacy MD5-only artifact can be accepted only with the explicit unsafe compatibility flag:
-
-```bash
-depviz lock conda-resolution.json \
-  --provider conda-exact-lock \
-  --output conda-lock.json \
-  --allow-weak-checksum
-```
-
-The Conda driver writes a checksum-bearing `@EXPLICIT` file. It does not invoke dependency resolution during apply.
-
-## Python and uv lifecycle
-
-The initial Python backend is intentionally host-bound and wheel-only. It records:
+If `openssl` changes, every package reachable in reverse is potentially affected. The
+ranking tuple is simply:
 
 ```text
-Python implementation and version
-host platform and ABI
-exact wheel URL
-SHA-256
-normalized dependency edges
-uv version and native lock payload
+(number of roots affected, number of transitive dependents, number of direct dependents)
 ```
 
-It rejects source distributions, editable installs, mutable VCS references, unsupported local projects, credential-bearing URLs, and target interpreters whose ABI differs from the running Depviz process.
+The tuple is sorted descending. It is deliberately not converted to a magic 0-100 score.
 
-### Supported manifests
+When a manifest is supplied, its declared packages are the roots. Without a manifest,
+depviz uses source strongly connected components of the dependency graph as inferred roots.
+There are no `REQUESTED`/history heuristics, so the rule stays deterministic and cycle-safe.
+
+## Version conflicts
+
+For each package, depviz collects the constraints imposed by direct dependents and by a
+supplied manifest.
 
 ```text
-requirements.in
-requirements.txt
-pyproject.toml [project].dependencies
-selected [project.optional-dependencies]
-selected [dependency-groups]
+A -> numpy >=1.24,<2
+B -> numpy >=1.26
+C -> numpy <1.27
 ```
 
-Select extras and dependency groups explicitly:
+Depviz reports:
 
-```bash
-depviz resolve pyproject.toml \
-  --resolver uv-lock \
-  --python /usr/bin/python3.12 \
-  --extra plot \
-  --group test \
-  --output python-resolution.json
-```
+- `OK` — the installed version satisfies the known constraints.
+- `INVALID` — the installed version violates at least one constraint, but the constraints
+  are not provably contradictory.
+- `CONFLICT` — the known constraints have a provably empty intersection.
+- `UNKNOWN` — metadata or version syntax cannot be interpreted safely.
+- `MISSING` — another installed package depends on this package, but it is not installed.
 
-An immutable direct wheel is supported when its requirement contains an exact SHA-256 fragment:
+When a conflict is provable, depviz also reports a small conflicting witness set instead
+of forcing you to inspect every constraint:
 
 ```text
-example @ file:///artifacts/example-1.0-py3-none-any.whl#sha256=<64 hex characters>
+conflict:
+  package-b -> numpy<2
+  package-c -> numpy>=2
 ```
 
-### Resolve and plan
+Conflict detection is deliberately conservative. Unknown syntax is never silently treated
+as compatible.
 
-```bash
-depviz resolve requirements.in \
-  --resolver uv-lock \
-  --python /usr/bin/python3.12 \
-  --output python-resolution.json
-```
+## Mixed Conda + pip environments
 
-For a new virtual environment:
+PyPI distribution names use Python packaging canonicalization (`.`, `_`, and `-` are
+equivalent there). Conda package identity is kept separate: Conda names are lowercased,
+but valid separator characters are not folded together. Cross-ecosystem reconciliation only binds a Python requirement to a Conda package when
+that package is known to provide the Python distribution, using installed Python metadata
+and Conda file records. Mere name similarity is not treated as proof of identity.
 
-```bash
-depviz plan requirements.in \
-  --resolver uv-lock \
-  --inspector python-venv \
-  --python /usr/bin/python3.12 \
-  --empty \
-  --output python-plan.json
-```
+This matters when, for example, a pip-installed package requires `numpy` but NumPy itself
+is Conda-owned. Depviz binds that edge to the installed Conda NumPy instead of creating a
+fake second `pypi:numpy` node and under-counting its blast radius.
 
-Against an existing virtual environment:
+For Conda version syntax, depviz uses Conda's native version matcher when available. Its
+fallback supports only a conservative comparator/prefix subset; build-string or otherwise
+unsupported syntax becomes `UNKNOWN` rather than a false `OK`.
 
-```bash
-depviz plan requirements.in \
-  --resolver uv-lock \
-  --inspector python-venv \
-  --python /usr/bin/python3.12 \
-  --prefix .venv \
-  --output python-plan.json
-```
+## Where the graph comes from
 
-### Lock and apply
+- Python: installed distribution metadata (`Requires-Dist`) from the target interpreter.
+- Conda: `conda-meta/*.json` from the target prefix.
 
-```bash
-depviz lock python-resolution.json \
-  --provider python-exact-lock \
-  --output python-lock.json
+Unresolved dependency references remain in the graph as explicit `MISSING` nodes so their
+blast radius is still visible. Malformed metadata is handled conservatively: when a
+dependency name can be recovered the edge is preserved and its constraint becomes
+`UNKNOWN`; when it cannot be recovered depviz warns that analysis may be incomplete. Conda
+virtual packages such as `__glibc` and `__cuda` are host capabilities rather than installed
+packages, so they are not emitted as fake missing package rows.
 
-depviz apply python-lock.json \
-  --provider python-exact-lock \
-  --driver python-venv-driver \
-  --python /usr/bin/python3.12 \
-  --deployment .depviz/python-app
-```
+This is inspection, not solving. Depviz never mutates the environment.
 
-Apply creates a new virtual environment and invokes `uv pip sync` only against direct, SHA-256-pinned wheel URLs with index access disabled. It does not ask uv or pip to resolve packages again.
+## Algorithm notes
 
-## Verify, promote, and roll back
+The dependency graph is condensed into strongly connected components with an iterative
+Kosaraju traversal, then reverse reachability is propagated once across the resulting DAG
+using integer bitsets. This keeps cycles correct, avoids recursion-depth failures, and
+avoids one full reverse BFS per package. Global analysis stores exact transitive counts
+without materializing every ancestor list; full dependent lists and shortest paths are
+materialized only for a focused package.
 
-### Conda candidate
-
-```bash
-depviz verify conda-lock.json \
-  --provider conda-exact-lock \
-  --verifier conda-prefix-verifier \
-  --deployment .depviz/conda-app \
-  --candidate <candidate-id>
-```
-
-### Python candidate
-
-```bash
-depviz verify python-lock.json \
-  --provider python-exact-lock \
-  --verifier python-venv-verifier \
-  --python /usr/bin/python3.12 \
-  --deployment .depviz/python-app \
-  --candidate <candidate-id> \
-  --probe-import requests
-```
-
-Python verification checks:
-
-- runtime identity
-- exact installed distribution set and versions
-- direct artifact origins
-- dependency metadata
-- every installed file covered by wheel `RECORD` hashes
-- configured import and command probes
-
-Promotion reloads the archived lock and re-verifies under the deployment operation lock:
-
-```bash
-depviz promote \
-  --provider python-exact-lock \
-  --verifier python-venv-verifier \
-  --python /usr/bin/python3.12 \
-  --deployment .depviz/python-app \
-  --candidate <candidate-id> \
-  --probe-import requests
-```
-
-Rollback performs the same mandatory re-verification on the previous candidate:
-
-```bash
-depviz rollback \
-  --provider python-exact-lock \
-  --verifier python-venv-verifier \
-  --python /usr/bin/python3.12 \
-  --deployment .depviz/python-app
-```
-
-The environment should be consumed through:
-
-```text
-.depviz/python-app/current
-```
-
-not through an individual candidate path.
-
-## Deployment status and maintenance
-
-```bash
-depviz status \
-  --deployment .depviz/python-app \
-  --deployment-kind managed-python-deployment
-```
-
-Check plugin contracts, backend executables, and optionally one deployment:
-
-```bash
-depviz doctor \
-  --plugin depviz-python \
-  --python /usr/bin/python3.12 \
-  --uv-executable uv \
-  --deployment .depviz/python-app
-```
-
-Garbage collection is a dry run unless `--execute` is present:
-
-```bash
-depviz gc --deployment .depviz/python-app --keep 3
-depviz gc --deployment .depviz/python-app --keep 3 --execute
-```
-
-Garbage collection never removes:
-
-- the current candidate
-- the immediate rollback target
-- a candidate involved in a pending switch
-
-Candidate records and archived locks are retained as audit evidence after an environment directory is removed.
-
-## Managed deployment layout
-
-```text
-my-environment/
-├── current -> environments/<candidate-id>
-├── environments/
-│   ├── <candidate-id>/
-│   └── <candidate-id>/
-└── .depviz/
-    ├── candidates/
-    ├── locks/
-    ├── verifications/
-    ├── deployment.json
-    ├── operation.lock
-    └── pending-switch.json
-```
-
-Candidate building can occur independently, but metadata changes and pointer switches are serialized with a cross-process advisory lock. Interrupted pointer switches are recovered from the durable journal.
-
-## Plugin API 2.0
-
-The public API under `depviz.api` provides coarse lifecycle protocols:
-
-- `HealthCheck`
-- `ManifestLoader`
-- `EnvironmentInspector`
-- `Resolver`
-- `LockProvider`
-- `EnvironmentDriver`
-- `Verifier`
-
-Drivers and verifiers declare explicit `environment_kind` and `deployment_kind` values. Core rejects mismatched locks, drivers, verifiers, candidates, and deployment types before mutation.
-
-Third-party plugins use standard Python entry points:
-
-```toml
-[project.entry-points."depviz.backends"]
-example = "depviz_example.plugin:create_plugin"
-```
-
-```bash
-depviz --list-plugins
-```
-
-The reusable contributor test kit is available from `depviz.testing`:
-
-```python
-from depviz.testing import BackendConformanceCase, run_backend_conformance_suite
-```
-
-It exercises plugin validation, health checks, resolution, lock round-tripping, isolated application, verification, promotion, rollback, and optional drift detection through public protocols only.
-
-## Source layout
-
-```text
-src/depviz/
-├── api/             public domain objects and protocols
-├── core/            lifecycle orchestration and maintenance
-├── analysis/        graph, diff, impact, and policy functions
-├── infrastructure/  subprocess, durable storage, deployment state, and locks
-├── plugins/         discovery, validation, and registry
-├── builtin/         official manifest, Conda, and Python adapters
-├── testing/         reusable plugin conformance helpers
-├── cli/             parser, dispatch, handlers, rendering, and exit codes
-├── schemas/         versioned persisted-document schemas
-├── main.py          composition root
-└── __main__.py      python -m depviz entry point
-```
-
-## Current limitations
-
-- Atomic promotion currently requires POSIX symlinks.
-- Conda and Python application are host-platform only.
-- Python resolution currently requires the selected interpreter to match Depviz's running implementation, major/minor version, platform, and ABI.
-- Python source distributions and source builds are intentionally unsupported.
-- Depviz cannot prevent arbitrary external processes from editing candidate files. Mandatory pre-switch verification detects normal file drift before promotion or rollback.
-- Authentication-bearing artifact URLs are not persisted. Private repository credentials require a separate provider design.
-- R and compound multi-layer environments are not implemented yet.
+The test suite includes brute-force and randomized graph oracles plus adversarial cases for
+cycles, deep chains, 10k-scale behavior, extras/marker fixpoints, malformed manifests and
+installed metadata, constraint includes, duplicate metadata, mixed Conda/pip identity and
+version semantics, virtual packages, wildcard exclusions, and ambiguous names.
 
 ## Development
 
 ```bash
-make test
-make lint
-make format-check
-make typecheck
-make deadcode
-make check
+python -m pip install -e '.[dev]'
+pytest
+ruff check .
+mypy src
 ```
 
-See:
-
-- `docs/architecture.md`
-- `docs/conda-resolver.md`
-- `docs/python-uv-backend.md`
-- `docs/planning-locking.md`
-- `docs/deployment-lifecycle.md`
-- `docs/plugin-conformance.md`
-- `docs/maintenance.md`
-- `docs/maintainability.md`
-- `CONTRIBUTING.md`
+`pytest` also works directly from an unpacked source tree because `src` is configured as a
+test import path.
 
 ## License
 
