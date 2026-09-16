@@ -110,12 +110,7 @@ def _requirements(
         if constraint is not None:
             result.extend(_requirements(path.parent / constraint, seen, is_root=False))
             continue
-        if (
-            line == "-e"
-            or line.startswith("-e ")
-            or line.startswith("--editable ")
-            or line.startswith("--editable=")
-        ):
+        if line == "-e" or line.startswith(("-e ", "--editable ", "--editable=")):
             raise ValueError(
                 f"editable requirement is not supported safely: {line!r}; "
                 "use a named requirement or pyproject.toml"
@@ -127,13 +122,14 @@ def _requirements(
             result.append(req)
     return result
 
+
 def _conda_yaml(path: Path) -> list[ManifestRequirement]:
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     if not isinstance(data, dict):
-        raise ValueError("environment file must contain a mapping")
+        raise TypeError("environment file must contain a mapping")
     deps = data.get("dependencies", [])
     if not isinstance(deps, list):
-        raise ValueError("environment dependencies must be a list")
+        raise TypeError("environment dependencies must be a list")
     result: list[ManifestRequirement] = []
     for item in deps:
         if isinstance(item, str):
@@ -147,15 +143,15 @@ def _conda_yaml(path: Path) -> list[ManifestRequirement]:
                 )
             pip_items = item["pip"]
             if not isinstance(pip_items, list):
-                raise ValueError("environment pip dependencies must be a list")
+                raise TypeError("environment pip dependencies must be a list")
             for pip_item in pip_items:
                 if not isinstance(pip_item, str):
-                    raise ValueError("environment pip dependencies must be strings")
+                    raise TypeError("environment pip dependencies must be strings")
                 req = _pip_requirement(pip_item)
                 if req:
                     result.append(req)
         else:
-            raise ValueError("environment dependency entries must be strings or a pip mapping")
+            raise TypeError("environment dependency entries must be strings or a pip mapping")
     return result
 
 
@@ -164,11 +160,11 @@ def _pyproject(path: Path) -> list[ManifestRequirement]:
     project = data.get("project", {})
     deps = project.get("dependencies", []) if isinstance(project, dict) else []
     if not isinstance(deps, list):
-        raise ValueError("pyproject project.dependencies must be a list")
+        raise TypeError("pyproject project.dependencies must be a list")
     result: list[ManifestRequirement] = []
     for item in deps:
         if not isinstance(item, str):
-            raise ValueError("pyproject project.dependencies entries must be strings")
+            raise TypeError("pyproject project.dependencies entries must be strings")
         req = _pip_requirement(item)
         if req:
             result.append(req)

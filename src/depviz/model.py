@@ -17,7 +17,7 @@ def normalize_conda_name(name: str) -> str:
     return name.strip().lower()
 
 
-def name_matches(key: "PackageKey", query: str) -> bool:
+def name_matches(key: PackageKey, query: str) -> bool:
     if key.ecosystem == "conda":
         return key.name == normalize_conda_name(query)
     return key.name == normalize_name(query)

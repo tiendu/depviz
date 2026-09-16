@@ -1,0 +1,49 @@
+name: Linux binary
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  linux-x86_64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build on glibc 2.17 baseline
+        run: |
+          docker run --rm \
+            -v "$PWD:/io" \
+            -w /io \
+            quay.io/pypa/manylinux2014_x86_64 \
+            /bin/bash -lc '\
+              make binary PYTHON=/opt/python/cp311-cp311/bin/python && \
+              chmod 0755 dist/depviz'
+      - name: Install and smoke standalone executable
+        run: |
+          rm -rf /tmp/depviz-stage
+          make install DESTDIR=/tmp/depviz-stage
+          INSTALLED=/tmp/depviz-stage/usr/local/bin/depviz
+          "$INSTALLED" --version
+          python3 -m venv /tmp/depviz-target
+          VIRTUAL_ENV=/tmp/depviz-target PATH="/tmp/depviz-target/bin:$PATH" \
+            "$INSTALLED" --json >/tmp/depviz.json
+          python3 - <<'PY'
+          import json
+          payload = json.load(open('/tmp/depviz.json'))
+          assert payload['schema_version'] == 1
+          PY
+      - name: Name release artifact
+        run: |
+          mv dist/depviz dist/depviz-linux-x86_64
+          sha256sum dist/depviz-linux-x86_64 > dist/depviz-linux-x86_64.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: depviz-linux-x86_64
+          path: |
+            dist/depviz-linux-x86_64
+            dist/depviz-linux-x86_64.sha256

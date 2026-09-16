@@ -82,6 +82,68 @@ You can also point at an installed environment prefix:
 depviz /opt/conda/envs/bio
 ```
 
+
+## Standalone Linux command
+
+`depviz` can be frozen into a single self-contained Linux executable. The release binary
+contains depviz's own Python runtime and libraries, so the command itself does not require
+Python or a package installation.
+
+Build and install it like a normal Unix command:
+
+```bash
+make check                            # bootstraps isolated dev tools and runs checks
+make                                  # bootstraps PyInstaller and builds dist/depviz
+sudo make install                     # installs /usr/local/bin/depviz
+
+depviz --version
+depviz
+```
+
+`make check`, `make`, and `make install` bootstrap their own isolated `.build/venv` as needed.
+You do not need to pre-install pytest, Ruff, mypy, PyInstaller, or depviz into your system Python.
+The build host only needs Python 3.11+ with `venv`/`pip`, a C runtime suitable for PyInstaller,
+and network/package-index access the first time the isolated environment is prepared.
+
+Building first as your normal user and using sudo only for the final copy step is preferred:
+
+```bash
+make check && make
+sudo make install
+```
+
+A one-shot `sudo make install` also works, but creates the build environment as root and is
+therefore less pleasant for development.
+
+The install location follows normal Unix make conventions:
+
+```bash
+make install PREFIX="$HOME/.local"     # no root required
+make install DESTDIR=/tmp/pkgroot     # packaging/staging root
+sudo make uninstall                   # removes the installed command
+```
+
+`/usr/local/bin` is the default location for a manually installed executable. `/etc` is for
+system configuration, not commands. A distro package may instead set `PREFIX=/usr`.
+
+The standalone executable deliberately does **not** inspect its embedded Python runtime.
+For Python metadata it selects the target interpreter in this order:
+
+1. an explicit environment prefix passed to `depviz`
+2. the active `CONDA_PREFIX` or `VIRTUAL_ENV`
+3. `python3`, then `python`, from `PATH` when no environment prefix is active
+
+If an explicit or active prefix contains no Python interpreter, depviz keeps the inspection
+scoped to that prefix; it does not fall back to an unrelated Python installation.
+
+Conda metadata is still read directly from `conda-meta`. This means the binary can live in
+`/usr/local/bin` while inspecting whichever environment the shell currently has activated.
+
+Release Linux x86-64 binaries are built as PyInstaller one-file executables on a
+`manylinux2014`/glibc 2.17 baseline for broad forward compatibility. `make binary` remains
+available as the lower-level build-only target used by release automation; normal users should
+prefer `make` followed by `make install`.
+
 ## What "risk" means
 
 For package `P`, depviz walks dependency edges backward.
@@ -184,11 +246,11 @@ version semantics, virtual packages, wildcard exclusions, and ambiguous names.
 ## Development
 
 ```bash
-python -m pip install -e '.[dev]'
-pytest
-ruff check .
-mypy src
+make check
 ```
+
+The check target bootstraps an isolated `.build/venv` and runs pytest, Ruff, mypy, and
+compileall. Host-global copies of those tools are not required.
 
 `pytest` also works directly from an unpacked source tree because `src` is configured as a
 test import path.

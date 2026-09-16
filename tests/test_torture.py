@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections import deque
-from itertools import combinations
 from pathlib import Path
 
 from depviz.analysis import _reachability, analyze
@@ -282,8 +281,8 @@ def test_mixed_pip_and_conda_constraints_can_prove_conflict() -> None:
 
 
 def test_unknown_conda_build_pin_does_not_corrupt_pip_semantics() -> None:
-    from depviz.model import ConstraintContributor
     from depviz.constraints import analyze_constraints
+    from depviz.model import ConstraintContributor
 
     result = analyze_constraints(
         "conda",
@@ -334,6 +333,7 @@ def test_load_inventory_merges_conda_owned_python_metadata_and_keeps_pip_overlay
     tmp_path: Path, monkeypatch
 ) -> None:
     import json
+
     import depviz.inventory as inventory_module
 
     meta = tmp_path / "conda-meta"
@@ -440,3 +440,142 @@ def test_conda_python_alias_detection_handles_windows_paths() -> None:
     assert _python_names_from_conda_files(
         [r"Lib\\site-packages\\scikit_learn-1.6.0.dist-info\\METADATA"]
     ) == {"scikit-learn"}
+
+
+def test_active_virtualenv_is_target_for_standalone_discovery(tmp_path: Path, monkeypatch) -> None:
+    import depviz.inventory as inventory_module
+
+    python = tmp_path / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+    monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path))
+    monkeypatch.delenv("CONDA_PREFIX", raising=False)
+
+    active = inventory_module._active_environment_prefix()
+    assert active == tmp_path.resolve()
+    assert inventory_module._target_python(None, active) == python.resolve()
+
+
+def test_frozen_binary_uses_path_python_not_its_embedded_interpreter(monkeypatch, tmp_path: Path) -> None:
+    import depviz.inventory as inventory_module
+
+    external = tmp_path / "python3"
+    external.write_text("", encoding="utf-8")
+    monkeypatch.setattr(inventory_module, "_is_frozen", lambda: True)
+    monkeypatch.setattr(inventory_module.shutil, "which", lambda command: str(external) if command == "python3" else None)
+
+    assert inventory_module._target_python(None, None) == external.resolve()
+
+
+def test_active_conda_prefix_drives_python_metadata_source(tmp_path: Path, monkeypatch) -> None:
+    import json
+
+    import depviz.inventory as inventory_module
+
+    meta = tmp_path / "conda-meta"
+    meta.mkdir()
+    (meta / "numpy-2.0-0.json").write_text(
+        json.dumps({"name": "numpy", "version": "2.0", "depends": [], "files": []}),
+        encoding="utf-8",
+    )
+    python = tmp_path / "bin" / "python"
+    python.parent.mkdir()
+    python.write_text("", encoding="utf-8")
+    monkeypatch.setenv("CONDA_PREFIX", str(tmp_path))
+    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+    called: list[Path] = []
+
+    def fake_external(target: Path):
+        called.append(target)
+        return [], {"python_version": "3.12", "python_full_version": "3.12.0", "extra": ""}
+
+    monkeypatch.setattr(inventory_module, "_python_records_external", fake_external)
+    inventory_module.load_inventory()
+
+    assert called == [python.resolve()]
+
+
+def test_frozen_inventory_never_uses_embedded_metadata(monkeypatch, tmp_path: Path) -> None:
+    import depviz.inventory as inventory_module
+
+    external = tmp_path / "python3"
+    external.write_text("", encoding="utf-8")
+    monkeypatch.delenv("CONDA_PREFIX", raising=False)
+    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+    monkeypatch.setattr(inventory_module, "_is_frozen", lambda: True)
+    monkeypatch.setattr(inventory_module, "_python_from_path", lambda: external)
+    monkeypatch.setattr(
+        inventory_module,
+        "_python_records_current",
+        lambda: (_ for _ in ()).throw(AssertionError("embedded metadata must not be inspected")),
+    )
+    monkeypatch.setattr(
+        inventory_module,
+        "_python_records_external",
+        lambda python: ([], {"python_version": "3.12", "python_full_version": "3.12.0", "extra": ""}),
+    )
+
+    inventory = inventory_module.load_inventory()
+    assert inventory.source == "current environment"
+
+
+def test_frozen_external_process_restores_original_library_paths(monkeypatch) -> None:
+    import depviz.inventory as inventory_module
+
+    monkeypatch.setattr(inventory_module, "_is_frozen", lambda: True)
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/tmp/_MEI/bundled")
+    monkeypatch.setenv("LD_LIBRARY_PATH_ORIG", "/usr/local/lib")
+    monkeypatch.setenv("LIBPATH", "/tmp/_MEI/bundled-aix")
+    monkeypatch.delenv("LIBPATH_ORIG", raising=False)
+
+    env = inventory_module._external_process_environment()
+
+    assert env["LD_LIBRARY_PATH"] == "/usr/local/lib"
+    assert "LIBPATH" not in env
+
+
+def test_external_python_receives_sanitized_environment(monkeypatch, tmp_path: Path) -> None:
+    import json
+
+    import depviz.inventory as inventory_module
+
+    python = tmp_path / "python"
+    python.write_text("", encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    class Result:
+        stdout = json.dumps(
+            {
+                "marker_environment": {
+                    "python_version": "3.12",
+                    "python_full_version": "3.12.0",
+                    "extra": "",
+                },
+                "distributions": [],
+            }
+        )
+
+    def fake_run(*args, **kwargs):
+        captured.update(kwargs)
+        return Result()
+
+    monkeypatch.setattr(inventory_module, "_is_frozen", lambda: True)
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/tmp/_MEI")
+    monkeypatch.setenv("LD_LIBRARY_PATH_ORIG", "/system/lib")
+    monkeypatch.setattr(inventory_module.subprocess, "run", fake_run)
+
+    inventory_module._python_records_external(python)
+
+    assert captured["env"]["LD_LIBRARY_PATH"] == "/system/lib"
+
+
+def test_explicit_prefix_without_python_does_not_fall_back_to_depviz_python(tmp_path: Path) -> None:
+    import depviz.inventory as inventory_module
+
+    assert inventory_module._target_python(tmp_path, None) is None
+
+
+def test_active_prefix_without_python_does_not_fall_back_to_depviz_python(tmp_path: Path) -> None:
+    import depviz.inventory as inventory_module
+
+    assert inventory_module._target_python(None, tmp_path) is None

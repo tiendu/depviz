@@ -77,7 +77,7 @@ def main(argv: list[str] | None = None) -> int:
         if focus and not any(name_matches(row.package, focus) for row in results):
             return 1
         return 0
-    except (OSError, ValueError) as error:
+    except (OSError, TypeError, ValueError) as error:
         print(f"depviz: {error}", file=sys.stderr)
         return 2
 

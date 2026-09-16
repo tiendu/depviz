@@ -4,7 +4,6 @@ import json
 from dataclasses import asdict
 
 from depviz import __version__
-
 from depviz.model import Inventory, PackageKey, PackageRisk, name_matches
 
 

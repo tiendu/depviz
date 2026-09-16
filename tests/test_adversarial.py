@@ -160,7 +160,7 @@ def test_malformed_environment_dependencies_shape_fails(tmp_path: Path) -> None:
     path = tmp_path / "environment.yml"
     path.write_text("dependencies: numpy\n", encoding="utf-8")
 
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         load_manifest(path)
 
 
@@ -168,7 +168,7 @@ def test_malformed_pyproject_dependencies_shape_fails(tmp_path: Path) -> None:
     path = tmp_path / "pyproject.toml"
     path.write_text('[project]\nname="x"\ndependencies="numpy"\n', encoding="utf-8")
 
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         load_manifest(path)
 
 
@@ -205,7 +205,7 @@ def test_environment_non_mapping_root_fails_loudly(tmp_path: Path) -> None:
     path = tmp_path / "environment.yml"
     path.write_text("- numpy\n- scipy\n", encoding="utf-8")
 
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         load_manifest(path)
 
 
@@ -522,6 +522,7 @@ def test_malformed_python_requirement_preserves_blast_and_becomes_unknown() -> N
 
 def test_malformed_conda_dependency_warns_incomplete_instead_of_silent_drop(tmp_path: Path) -> None:
     import json
+
     from depviz.inventory import _load_conda_prefix
 
     meta = tmp_path / "conda-meta"

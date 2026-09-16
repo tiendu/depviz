@@ -4,11 +4,12 @@ import importlib.metadata
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+from collections.abc import Iterable
 from dataclasses import replace
 from pathlib import Path
-from typing import Iterable
 
 from packaging.markers import default_environment
 from packaging.requirements import InvalidRequirement, Requirement
@@ -103,7 +104,7 @@ def _load_conda_prefix(prefix: Path, inventory: Inventory) -> set[str]:
                     )
             inventory.add(record)
             conda_names.add(name)
-        except Exception as error:  # corrupt metadata should not erase the rest of the graph
+        except Exception as error:  # noqa: BLE001 - corrupt external metadata must not abort inspection.
             inventory.diagnostics.append(f"could not read {metadata_file.name}: {error}")
     return conda_names
 
@@ -111,7 +112,7 @@ def _load_conda_prefix(prefix: Path, inventory: Inventory) -> set[str]:
 def _dist_is_pip_owned(dist: importlib.metadata.Distribution) -> bool:
     try:
         installer = (dist.read_text("INSTALLER") or "").strip().lower()
-    except Exception:
+    except Exception:  # noqa: BLE001 - third-party Distribution metadata can fail arbitrarily.
         installer = ""
     return installer == "pip"
 
@@ -192,6 +193,25 @@ def _python_records_current() -> Iterable[tuple[PackageRecord, bool]]:
         yield record, _dist_is_pip_owned(dist)
 
 
+def _external_process_environment() -> dict[str, str]:
+    """Return an environment safe for launching programs outside a frozen bundle."""
+
+    env = dict(os.environ)
+    if not _is_frozen():
+        return env
+
+    # PyInstaller prepends its private library directory so bundled extensions load
+    # correctly. External programs must see the user's original library search path
+    # instead, otherwise a target Python/Conda executable can load incompatible libs.
+    for key in ("LD_LIBRARY_PATH", "LIBPATH", "DYLD_LIBRARY_PATH"):
+        original_key = f"{key}_ORIG"
+        if original_key in env:
+            env[key] = env[original_key]
+        else:
+            env.pop(key, None)
+    return env
+
+
 def _python_records_external(
     python: Path,
 ) -> tuple[list[tuple[PackageRecord, bool]], dict[str, str]]:
@@ -236,23 +256,51 @@ print(json.dumps({"marker_environment":marker_environment,"distributions":out}))
     proc = subprocess.run(
         [str(python), "-c", script],
         check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         text=True,
         timeout=30,
+        env=_external_process_environment(),
     )
-    payload = json.loads(proc.stdout)
-    marker_environment = payload["marker_environment"]
+    payload: object = json.loads(proc.stdout)
+    if not isinstance(payload, dict):
+        raise ValueError("external Python metadata payload must be an object")
+
+    raw_environment = payload.get("marker_environment")
+    if not isinstance(raw_environment, dict):
+        raise ValueError("external Python marker environment is malformed")
+    marker_environment: dict[str, str] = {}
+    for key, value in raw_environment.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            raise ValueError("external Python marker environment is malformed")
+        marker_environment[key] = value
+
+    raw_distributions = payload.get("distributions")
+    if not isinstance(raw_distributions, list):
+        raise ValueError("external Python distributions payload is malformed")
+
     result: list[tuple[PackageRecord, bool]] = []
-    for item in payload["distributions"]:
+    for item in raw_distributions:
+        if not isinstance(item, dict):
+            raise ValueError("external Python distribution entry must be an object")
+        name = item.get("name")
+        version = item.get("version")
+        raw_requires = item.get("requires", [])
+        installer = item.get("installer")
+        if not isinstance(name, str):
+            raise ValueError("external Python distribution name is malformed")
+        if version is not None and not isinstance(version, str):
+            raise ValueError(f"external Python version for {name!r} is malformed")
+        if not isinstance(raw_requires, list):
+            raise ValueError(f"external Python requirements for {name!r} are malformed")
+        requires: list[str] = []
+        for requirement in raw_requires:
+            if not isinstance(requirement, str):
+                raise ValueError(f"external Python requirements for {name!r} are malformed")
+            requires.append(requirement)
         result.append(
             (
-                _python_record(
-                    item["name"],
-                    item.get("version"),
-                    item.get("requires", []),
-                ),
-                item.get("installer") == "pip",
+                _python_record(name, version, requires),
+                installer == "pip",
             )
         )
     return result, marker_environment
@@ -260,6 +308,47 @@ print(json.dumps({"marker_environment":marker_environment,"distributions":out}))
 def _python_for_prefix(prefix: Path) -> Path | None:
     candidates = [prefix / "bin" / "python", prefix / "Scripts" / "python.exe"]
     return next((p for p in candidates if p.exists()), None)
+
+
+def _is_frozen() -> bool:
+    """Return True when depviz is running from a frozen standalone bundle."""
+
+    return bool(getattr(sys, "frozen", False))
+
+
+def _active_environment_prefix() -> Path | None:
+    """Return the shell's active Conda/venv prefix, if any."""
+
+    for variable in ("CONDA_PREFIX", "VIRTUAL_ENV"):
+        value = os.environ.get(variable)
+        if value:
+            prefix = Path(value).expanduser()
+            if prefix.is_dir():
+                return prefix.resolve()
+    return None
+
+
+def _python_from_path() -> Path | None:
+    """Locate the user's Python when a standalone depviz has no active prefix."""
+
+    for command in ("python3", "python"):
+        value = shutil.which(command)
+        if value:
+            return Path(value).resolve()
+    return None
+
+
+def _target_python(prefix: Path | None, active_prefix: Path | None) -> Path | None:
+    target_prefix = prefix or active_prefix
+    if target_prefix is not None:
+        python = _python_for_prefix(target_prefix)
+        return python.resolve() if python is not None else None
+
+    # A normal Python installation should inspect itself. A frozen executable must
+    # never do that: sys.executable is the depviz bundle, not the user's environment.
+    if not _is_frozen():
+        return Path(sys.executable).resolve()
+    return _python_from_path()
 
 
 def reconcile_inventory(inventory: Inventory) -> None:
@@ -338,18 +427,16 @@ def _merge_python_metadata_into_conda(
 
 def load_inventory(prefix: Path | None = None) -> Inventory:
     prefix = prefix.resolve() if prefix else None
-    source = str(prefix) if prefix else "current environment"
+    active_prefix = _active_environment_prefix() if prefix is None else None
+    target_prefix = prefix or active_prefix
+    source = str(target_prefix) if target_prefix else "current environment"
     marker_environment = default_environment()
     marker_environment["extra"] = ""
     inventory = Inventory(source=source, marker_environment=marker_environment)
 
     conda_prefix: Path | None = None
-    if prefix and (prefix / "conda-meta").is_dir():
-        conda_prefix = prefix
-    elif not prefix:
-        env_prefix = os.environ.get("CONDA_PREFIX")
-        if env_prefix and (Path(env_prefix) / "conda-meta").is_dir():
-            conda_prefix = Path(env_prefix)
+    if target_prefix and (target_prefix / "conda-meta").is_dir():
+        conda_prefix = target_prefix
 
     conda_names = _load_conda_prefix(conda_prefix, inventory) if conda_prefix else set()
     conda_by_python_name: dict[str, list[PackageKey]] = {}
@@ -364,14 +451,18 @@ def load_inventory(prefix: Path | None = None) -> Inventory:
         for python_name in aliases:
             conda_by_python_name.setdefault(python_name, []).append(key)
 
-    python = _python_for_prefix(prefix) if prefix else Path(sys.executable)
+    python = _target_python(prefix, active_prefix)
     if python is None:
         inventory.diagnostics.append("no Python interpreter found in target environment")
         reconcile_inventory(inventory)
         return inventory
 
     try:
-        if not prefix or python.resolve() == Path(sys.executable).resolve():
+        use_current = (
+            not _is_frozen()
+            and python.resolve() == Path(sys.executable).resolve()
+        )
+        if use_current:
             records = list(_python_records_current())
         else:
             records, external_marker_environment = _python_records_external(python)
@@ -390,7 +481,7 @@ def load_inventory(prefix: Path | None = None) -> Inventory:
                     "keeping it as a separate Python node"
                 )
             inventory.add(record)
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - external environment inspection must degrade safely.
         inventory.diagnostics.append(f"could not inspect Python metadata: {error}")
 
     reconcile_inventory(inventory)

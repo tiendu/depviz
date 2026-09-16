@@ -1,5 +1,6 @@
 import random
 from collections import deque
+from itertools import pairwise
 
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
@@ -88,7 +89,7 @@ def test_random_graph_analysis_matches_bruteforce_oracle() -> None:
             assert {path[0] for path in focused_row.root_paths} == set(focused_row.affected_roots)
             for path in focused_row.root_paths:
                 assert path[-1] == target
-                for parent, child in zip(path, path[1:]):
+                for parent, child in pairwise(path):
                     assert child in forward[parent]
                 distance = _shortest_distance(forward, path[0], target)
                 assert distance is not None

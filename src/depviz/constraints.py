@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from importlib import import_module
-from typing import Iterable
 
 from packaging.specifiers import InvalidSpecifier, Specifier, SpecifierSet
 from packaging.version import InvalidVersion, Version
@@ -35,7 +35,7 @@ def _conda_native_satisfies(version: str, specifier: str) -> bool | None:
         return bool(version_spec.match(version))
     except (ImportError, AttributeError):
         return None
-    except Exception:
+    except Exception:  # noqa: BLE001 - optional Conda API may raise package-specific errors.
         # Invalid/unsupported MatchSpec must not be turned into a false OK.
         return None
 
@@ -105,9 +105,9 @@ def _conda_fallback_satisfies(version: str, specifier: str) -> bool | None:
             return False
         if op == "<" and not parsed < other:
             return False
-        if op == "==" and not parsed == other:
+        if op == "==" and parsed != other:
             return False
-        if op == "!=" and not parsed != other:
+        if op == "!=" and parsed == other:
             return False
     return True
 
@@ -130,7 +130,7 @@ def _satisfies(ecosystem: str, version: str, specifier: str) -> bool | None:
 
 
 def _prefix_interval(raw: str) -> tuple[Version, Version] | None:
-    prefix = raw[:-2] if raw.endswith(".*") else raw
+    prefix = raw.removesuffix(".*")
     pieces = prefix.split(".")
     if not pieces or not all(piece.isdigit() for piece in pieces):
         return None

@@ -52,7 +52,7 @@ def _edge_is_active(
             if marker.evaluate(environment):
                 return True
         return False
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - external marker metadata must fail conservative.
         message = f"could not evaluate dependency marker {edge.marker!r} from {edge.parent.name}: {error}"
         if message not in diagnostics:
             diagnostics.append(message)

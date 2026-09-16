@@ -35,11 +35,36 @@ release-critical cases.
 Run:
 
 ```bash
-python -m pip install -e '.[dev]'
-pytest -q
-ruff check .
-mypy src
-python -m compileall -q src
+make check
 ```
 
-The CI matrix runs these checks on Python 3.11, 3.12, and 3.13.
+The Makefile creates an isolated `.build/venv`, installs the development checks there, and
+runs pytest, Ruff, mypy, and compileall through that interpreter. Host-global copies of those
+tools are deliberately not required. The CI matrix runs the same `make check` contract on
+Python 3.11, 3.12, and 3.13. Ruff is constrained to the 0.16 series in `pyproject.toml`;
+upgrade that range deliberately rather than inheriting a new default rule set accidentally.
+
+## Standalone-binary invariants
+
+When depviz is frozen into a standalone executable:
+
+- never inspect the embedded runtime as the user's Python environment;
+- prefer an explicit prefix, then active `CONDA_PREFIX`/`VIRTUAL_ENV`, then `python3`/`python` on `PATH`;
+- an explicit/active prefix without Python stays that prefix (Conda-only inspection); never fall back to another Python;
+- sanitize PyInstaller-modified library search paths before launching an external interpreter;
+- binary packaging must not change graph or constraint semantics.
+
+## Unix build/install contract
+
+The public source-install workflow is:
+
+```bash
+make check && make
+sudo make install
+```
+
+The Makefile must bootstrap build/check dependencies into its isolated `.build/venv`; users
+should not have to install pytest, Ruff, mypy, or PyInstaller globally first. `make install`
+must install the standalone command, not perform an editable Python-package install. Keep
+`PREFIX`, `BINDIR`, and `DESTDIR` overrideable and never invoke `sudo` from the Makefile.
+`make binary` is a lower-level alias for CI/release packaging.
