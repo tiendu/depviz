@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from packaging.markers import default_environment
 from packaging.utils import canonicalize_name
+
+
+def default_marker_environment() -> dict[str, str]:
+    """Return packaging marker values as an ordinary mutable string mapping."""
+
+    return {key: str(value) for key, value in default_environment().items()}
 
 
 def normalize_name(name: str) -> str:

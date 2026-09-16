@@ -11,7 +11,6 @@ from collections.abc import Iterable
 from dataclasses import replace
 from pathlib import Path
 
-from packaging.markers import default_environment
 from packaging.requirements import InvalidRequirement, Requirement
 
 from depviz.model import (
@@ -19,6 +18,7 @@ from depviz.model import (
     PackageKey,
     PackageRecord,
     RequirementEdge,
+    default_marker_environment,
     normalize_conda_name,
     normalize_name,
 )
@@ -182,7 +182,7 @@ def _python_record(
 
 def _python_records_current() -> Iterable[tuple[PackageRecord, bool]]:
     for dist in importlib.metadata.distributions():
-        raw_name = dist.metadata.get("Name")
+        raw_name = dist.metadata["Name"]
         if not raw_name:
             continue
         record = _python_record(
@@ -430,7 +430,7 @@ def load_inventory(prefix: Path | None = None) -> Inventory:
     active_prefix = _active_environment_prefix() if prefix is None else None
     target_prefix = prefix or active_prefix
     source = str(target_prefix) if target_prefix else "current environment"
-    marker_environment = default_environment()
+    marker_environment = default_marker_environment()
     marker_environment["extra"] = ""
     inventory = Inventory(source=source, marker_environment=marker_environment)
 

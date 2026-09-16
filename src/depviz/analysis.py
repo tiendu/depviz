@@ -4,7 +4,7 @@ from collections import defaultdict, deque
 from collections.abc import Iterator
 from pathlib import Path
 
-from packaging.markers import Marker, default_environment
+from packaging.markers import Marker
 
 from depviz.constraints import analyze_constraints
 from depviz.model import (
@@ -15,6 +15,7 @@ from depviz.model import (
     PackageRecord,
     PackageRisk,
     RequirementEdge,
+    default_marker_environment,
     name_matches,
 )
 
@@ -73,7 +74,11 @@ def _active_edges(
     metadata iteration order and avoids repeatedly rescanning the whole graph.
     """
 
-    marker_environment = dict(inventory.marker_environment or default_environment())
+    marker_environment = (
+        dict(inventory.marker_environment)
+        if inventory.marker_environment
+        else default_marker_environment()
+    )
     marker_environment["extra"] = ""
     selected_extras: dict[PackageKey, set[str]] = defaultdict(set)
     if manifest is not None:
@@ -182,15 +187,15 @@ def _scc_data(
             continue
         component_id = len(components)
         component: set[PackageKey] = set()
-        stack = [start]
+        component_stack: list[PackageKey] = [start]
         component_of[start] = component_id
-        while stack:
-            node = stack.pop()
-            component.add(node)
-            for target in transpose.get(node, set()):
+        while component_stack:
+            component_node = component_stack.pop()
+            component.add(component_node)
+            for target in transpose.get(component_node, set()):
                 if target not in component_of:
                     component_of[target] = component_id
-                    stack.append(target)
+                    component_stack.append(target)
         components.append(component)
 
     dag: list[set[int]] = [set() for _ in components]

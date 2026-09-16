@@ -5,13 +5,13 @@ import tomllib
 from pathlib import Path
 
 import yaml
-from packaging.markers import default_environment
 from packaging.requirements import InvalidRequirement, Requirement
 
 from depviz.model import (
     Manifest,
     ManifestRequirement,
     PackageKey,
+    default_marker_environment,
     normalize_conda_name,
 )
 
@@ -30,7 +30,7 @@ def _pip_requirement(text: str, *, is_root: bool = True) -> ManifestRequirement 
     except InvalidRequirement as error:
         raise ValueError(f"unsupported or invalid Python requirement: {text!r}") from error
     if req.marker is not None:
-        environment = default_environment()
+        environment = default_marker_environment()
         environment["extra"] = ""
         try:
             if not req.marker.evaluate(environment):
